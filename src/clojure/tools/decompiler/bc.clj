@@ -4,7 +4,7 @@
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
-                                    ConstantPoolGen LocalVariableInstruction NEWARRAY)))
+                                    ConstantPoolGen LocalVariableInstruction NEWARRAY Select)))
 
 (set! *warn-on-reflection* true)
 
@@ -55,7 +55,11 @@
 
 (defmethod -parse-insn BranchInstruction
   [_ ^BranchInstruction insn]
-  {:insn/jump-target (.getIndex insn)})
+  (if (instance? Select insn)
+    (let [^Select insn insn]
+      {:insn/jump-targets {:insn/jump-targets (vec (.getIndices insn))
+                           :insn/jump-matches (vec (.getMatchs insn))}})
+    {:insn/jump-target (.getIndex insn)}))
 
 (defmethod -parse-insn ConstantPushInstruction
   [^JavaClass klass ^ConstantPushInstruction insn]
