@@ -4,7 +4,7 @@
            (org.apache.bcel.generic Instruction InstructionList
                                     BranchInstruction CPInstruction
 
-                                    ;LocalVariableInstruction, MONITORENTER, MONITOREXIT, NEWARRAY, ReturnInstruction, StackInstruction
+                                    ;LocalVariableInstruction, NEWARRAY
                                     )))
 
 (set! *warn-on-reflection* true)
@@ -41,7 +41,7 @@
        (.getFields)
        (mapv parse-field)))
 
-(defmulti -parse-insn (fn [^ConstantPool pool ^Instruction insn] (class insn)))
+(defmulti -parse-insn (fn [^JavaClass klass ^Instruction insn] (class insn)))
 
 (defmethod -parse-insn BranchInstruction
   [_ ^BranchInstruction insn]
@@ -55,10 +55,11 @@
       )))
 
 (defmethod -parse-insn CPInstruction
-  [^ConstantPool pool ^CPInstruction insn]
-  {:insn/pool-element (parse-pool-element pool (.getIndex insn))})
+  [^JavaClass klass ^CPInstruction insn]
+  (let [pool (.getConstantPool klass)]
+   {:insn/pool-element (parse-pool-element pool (.getIndex insn))}))
 
-(defn parse-insn [^ConstantPool pool ^Instruction insn]
+(defn parse-insn [^JavaClass klass ^Instruction insn]
   {:insn/name (.getName insn)
    :insn/length (.getLength insn)})
 
@@ -74,7 +75,7 @@
        (.getCode)
        (InstructionList.)
        (.getInstructions)
-       (mapv (partial parse-insn (.getConstantPool klass)))
+       (mapv (partial parse-insn klass))
        (reduce add-labels [])))
 
 (defn parse-method [^JavaClass klass ^Method method]
