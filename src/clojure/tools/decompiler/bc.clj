@@ -6,6 +6,8 @@
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
                                     ConstantPoolGen LocalVariableInstruction NEWARRAY Select)))
 
+;; Implementaiton is limited to the set of bytecode produced by Clojure compiler as of version 1.9.0
+
 (set! *warn-on-reflection* true)
 
 (defn parse-classfile ^JavaClass [filename]
