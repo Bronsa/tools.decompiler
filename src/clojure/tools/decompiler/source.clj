@@ -2,6 +2,8 @@
   (:require [clojure.tools.decompiler.stack :as stack]
             [clojure.tools.decompiler.utils :as u]))
 
+;; WIP worth conforming the AST with t.a?
+
 (def initial-ctx {:fields {}
                   :ast {}})
 
@@ -27,9 +29,16 @@
   (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<init>"})]
     (process-insns ctx bytecode)))
 
-(defn decompile-fn-method [ctx {:method/keys [return-type arg-types bytecode]}]
-  (let [ctx (process-insns ctx bytecode)]
-    {:op :fn-method}))
+(defn decompile-fn-method [ctx {:method/keys [return-type arg-types bytecode local-variable-table]}]
+  (let [{:keys [ast]} (process-insns ctx bytecode)]
+    {:op :fn-method
+     :args (for [i (range (count arg-types))
+                 ;; WIP doesn't work if there's no local-variable-table
+                 :let [{:local-variable/keys [name start-index type]} (get local-variable-table i)]
+                 :when (zero? start-index)]
+             {:type type
+              :name name})
+     :body ast}))
 
 (defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
@@ -41,9 +50,9 @@
                                                                           (= (count arg-types) argc))
                                                                         invokes-static))]
                                               invoke))
-        methods-asts (map (partial decompile-fn-method ctx) invoke-methods)]
+        methods-asts (mapv (partial decompile-fn-method ctx) invoke-methods)]
     {:op :fn
-     :fn-methods [methods-asts]}))
+     :fn-methods methods-asts}))
 
 (defn decompile-fn [{class-name :class/name
                      :class/keys [methods] :as bc}
@@ -66,7 +75,7 @@
   (require '[clojure.tools.decompiler.bc :as bc]
            '[clojure.java.io :as io])
 
-  (def filename (-> "test$foo.class" io/resource .getFile))
+  (def filename (-> "test$bar.class" io/resource .getFile))
   (def bc (bc/analyze-classfile filename))
 
   (bc->ast bc)
