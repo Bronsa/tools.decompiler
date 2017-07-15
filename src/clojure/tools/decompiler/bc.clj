@@ -1,6 +1,12 @@
 (ns clojure.tools.decompiler.bc
   (:require [clojure.java.io :as io])
-  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags)))
+  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags
+
+                                      ;; ConstantClass ConstantCP ConstantDouble ConstantFloat ConstantInteger
+                                      ;; ConstantLong ConstantMethodHandle ConstantMethodType
+                                      ;; ConstantNameAndType ConstantString ConstantUtf8
+
+                                      )))
 
 (set! *warn-on-reflection* true)
 
@@ -36,6 +42,18 @@
        (.getFields)
        (mapv parse-field)))
 
+;; (defmulti parse-constant class)
+
+;; (defmethod parse-constant )
+
+;; (defn class-constant-pool [^JavaClass klass]
+;;   (->> klass
+;;        (.getConstantPool)
+;;        (.getConstantPool)
+;;        (keep parse-constant)))
+
+(defn class-methods [klass])
+
 (defn analyze-classfile [filename]
   (let [klass (parse-classfile filename)]
     {:class/name (.getClassName klass)
@@ -49,7 +67,19 @@
 
      :class/flags (parse-flags klass)
 
+     ;; :class/constant-pool (class-constant-pool klass)
+
      :class/super (-> klass (.getSuperClass) (.getClassName))
      :class/interfaces (vec (.getInterfaceNames klass))
 
-     :class/fields (class-fields klass)}))
+     :class/fields (class-fields klass)
+     :class/methods (class-methods klass)}))
+
+(comment
+  (def filename (-> "test$foo.class" io/resource .getFile))
+  (def klass (parse-classfile filename))
+
+
+  (class-interfaces klass)
+
+  )
