@@ -1,7 +1,7 @@
 (ns clojure.tools.decompiler.bc
   (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
-                                      Utility)
+                                      Utility LocalVariable)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
                                     ConstantPoolGen LocalVariableInstruction TypedInstruction NEWARRAY Select)))
 
@@ -88,7 +88,7 @@
          (if (.startsWith signature "(")
            {:insn/target-arg-types (vec (Utility/methodSignatureArgumentTypes signature false))
             :insn/target-ret-type (Utility/methodSignatureReturnType signature false)}
-           {:insn/target-type (Utility/signatureToString signature)}))))))
+           {:insn/target-type (Utility/signatureToString signature false)}))))))
 
 (defmethod -parse-insn CPInstruction
   [^JavaClass klass ^CPInstruction insn]
@@ -116,12 +116,26 @@
        (mapv (partial parse-insn klass))
        (reduce add-labels [])))
 
+(defn parse-local-variable-table [local-variable-table]
+  (->>
+   (for [^LocalVariable local-variable local-variable-table]
+     [(.getIndex local-variable)
+      {:local-variable/name (.getName local-variable)
+       :local-variable/start-index (.getStartPC local-variable)
+       :local-variable/type (Utility/signatureToString (.getSignature local-variable) false)}])
+   (into {})))
+
 (defn parse-method [^JavaClass klass ^Method method]
   {:method/name (.getName method)
    :method/flags (parse-flags method)
    :method/return-type (-> method (.getReturnType) (str))
    :method/arg-types (->> method (.getArgumentTypes) (mapv str))
-   :method/bytecode (parse-bytecode klass method)})
+   :method/bytecode (parse-bytecode klass method)
+   :method/local-variable-table (or (some-> method
+                                            (.getLocalVariableTable)
+                                            (.getLocalVariableTable)
+                                            (parse-local-variable-table))
+                                    {})})
 
 (defn class-methods [^JavaClass klass]
   (->> klass
@@ -148,7 +162,7 @@
 (comment
   (require '[clojure.java.io :as io])
 
-  (def filename (-> "test$foo.class" io/resource .getFile))
+  (def filename (-> "test$bar.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
   (def m (first (.getMethods klass)))

@@ -23,12 +23,14 @@
   (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<init>"})]
     (process-insns ctx bytecode)))
 
-(defn decompile-fn-method [ctx method]
-  )
+(defn decompile-fn-method [ctx {:method/keys [return-type arg-types bytecode]}]
+  (let [ctx (process-insns ctx bytecode)]
+    {:op :fn-method}))
 
 (defn process-fn-methods [ctx {:class/keys [methods] :as bc}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
+        ;; WIP is DL enabled per fn or per fn method? I can't remember. Defensively assume the latter for now
         invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
                                                   :let [argc (count arg-types)]
                                                   :when (empty? (filter (fn [{:method/keys [arg-types]}]
