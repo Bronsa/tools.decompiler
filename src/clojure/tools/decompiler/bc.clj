@@ -1,12 +1,11 @@
 (ns clojure.tools.decompiler.bc
   (:require [clojure.java.io :as io])
-  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
-
-                                      ;; ConstantClass ConstantCP ConstantDouble ConstantFloat ConstantInteger
-                                      ;; ConstantLong ConstantMethodHandle ConstantMethodType
-                                      ;; ConstantNameAndType ConstantString ConstantUtf8
-
-                                      )))
+  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method ConstantPool)
+           (org.apache.bcel.generic Instruction InstructionList
+                                    ACONST_NULL, ArithmeticInstruction, ArrayInstruction, ARRAYLENGTH, ATHROW, BIPUSH,
+                                    BranchInstruction, BREAKPOINT, ConversionInstruction, CPInstruction, DCMPG, DCMPL,
+                                    DCONST, FCMPG, FCMPL, FCONST, ICONST, IMPDEP1, IMPDEP2, LCMP, LCONST, LocalVariableInstruction,
+                                    MONITORENTER, MONITOREXIT, NEWARRAY, NOP, RET, ReturnInstruction, SIPUSH, StackInstruction)))
 
 (set! *warn-on-reflection* true)
 
@@ -33,34 +32,45 @@
                  (.getType)
                  (str))
         name (.getName field)]
-    {:class.field/name name
-     :class.field/class type
-     :class.field/flags (parse-flags field)}))
+    {:field/name name
+     :field/class type
+     :field/flags (parse-flags field)}))
 
 (defn class-fields [^JavaClass klass]
   (->> klass
        (.getFields)
        (mapv parse-field)))
 
-;; (defmulti parse-constant class)
+(defmulti -parse-insn (fn [^ConstantPool pool ^Instruction insn] (class insn)))
 
-;; (defmethod parse-constant )
+(defmethod -parse-insn ACONST_NULL
+  [])
 
-;; (defn class-constant-pool [^JavaClass klass]
-;;   (->> klass
-;;        (.getConstantPool)
-;;        (.getConstantPool)
-;;        (keep parse-constant)))
+(defn parse-insn [^ConstantPool pool ^Instruction insn]
+  {:insn/name (.getName insn)
+   :insn/length (.getLength insn)})
+
+(defn add-labels [insns insn]
+  (let [label (if-let [{:insn/keys [label length]} (peek insns)]
+                (+ label length)
+                0)]
+    (conj insns (assoc insn :insn/label label))))
 
 (defn parse-bytecode [^JavaClass klass ^Method method]
-  )
+  (->> method
+       (.getCode)
+       (.getCode)
+       (InstructionList.)
+       (.getInstructions)
+       (mapv (partial parse-insn (.getConstantPool klass)))
+       (reduce add-labels [])))
 
 (defn parse-method [^JavaClass klass ^Method method]
-  {:class.method/name (.getName method)
-   :class.method/flags (parse-flags method)
-   :class.method/return-class (-> method (.getReturnType) (str))
-   :class.method/arg-classes (->> method (.getArgumentTypes) (mapv str))
-   :class.method/bytecode (parse-bytecode klass method)})
+  {:method/name (.getName method)
+   :method/flags (parse-flags method)
+   :method/return-class (-> method (.getReturnType) (str))
+   :method/arg-classes (->> method (.getArgumentTypes) (mapv str))
+   :method/bytecode (parse-bytecode klass method)})
 
 (defn class-methods [^JavaClass klass]
   (->> klass
@@ -71,16 +81,12 @@
   (let [klass (parse-classfile filename)]
     {:class/name (.getClassName klass)
      :class/filename (.getSourceFileName klass)
-     :class/version {:minor (.getMinor klass)
-                     :major (.getMajor klass)}
 
      :class/type (if (.isClass klass)
                    :class
                    :interface)
 
      :class/flags (parse-flags klass)
-
-     ;; :class/constant-pool (class-constant-pool klass)
 
      :class/super (-> klass (.getSuperClass) (.getClassName))
      :class/interfaces (vec (.getInterfaceNames klass))
@@ -89,6 +95,7 @@
      :class/methods (class-methods klass)}))
 
 (comment
+
   (def filename (-> "test$foo.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
@@ -96,4 +103,5 @@
 
   (keys (bean m))
 
+  (analyze-classfile filenameo)
   )
