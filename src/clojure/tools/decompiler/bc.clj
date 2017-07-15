@@ -4,7 +4,7 @@
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
-                                    ConstantPoolGen LocalVariableInstruction NEWARRAY Select)))
+                                    ConstantPoolGen LocalVariableInstruction TypedInstruction NEWARRAY Select)))
 
 ;; Implementaiton is limited to the set of bytecode produced by Clojure compiler as of version 1.9.0
 
@@ -46,7 +46,7 @@
 
 (defmethod -parse-insn :default [_ _])
 
-(defn type-from-pool-gen [^JavaClass klass ^LocalVariableInstruction insn]
+(defn type-from-pool-gen [^JavaClass klass ^TypedInstruction insn]
   (->> klass
        (.getConstantPool)
        (ConstantPoolGen.)
@@ -148,12 +148,12 @@
 
 (comment
 
-  (def filename (-> "Test.class" io/resource .getFile))
+  (def filename (-> "test__init.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
   (def m (first (.getMethods klass)))
 
   (keys (bean m))
 
-  (analyze-classfile filenameo)
+  (analyze-classfile filename)
   )
