@@ -23,8 +23,19 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
-;; (defmethod process-insn "return" [ctx _]
-;;   ctx)
+(defmethod process-insn "return" [ctx _]
+  ctx)
+
+(defmethod process-insn "ldc" [ctx {:insn/keys [pool-element]}]
+  (-> ctx
+      (update :stack conj {:op :const
+                           :val (:insn/target-value pool-element)})))
+
+(defmethod process-insn "areturn" [{:keys [stack] :as ctx} _]
+  (let [ast (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (assoc :ast ast))))
 
 ;; (defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
 ;;   (let [{:insn/keys [target-class target-arg-types]} pool-element
@@ -112,7 +123,7 @@
   (require '[clojure.tools.decompiler.bc :as bc]
            '[clojure.java.io :as io])
 
-  (def filename (-> "test$bar.class" io/resource .getFile))
+  (def filename (-> "test$foo.class" io/resource .getFile))
   (def bc (bc/analyze-classfile filename))
 
   (bc->ast bc)
