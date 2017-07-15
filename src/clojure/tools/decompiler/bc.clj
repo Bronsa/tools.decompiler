@@ -148,7 +148,7 @@
 
 (comment
 
-  (def filename (-> "test__init.class" io/resource .getFile))
+  (def filename (-> "test$foo.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
   (def m (first (.getMethods klass)))
