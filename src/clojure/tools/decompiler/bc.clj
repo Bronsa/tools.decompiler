@@ -9,11 +9,6 @@
       (ClassParser.)
       (.parse)))
 
-(defn class-interfaces [^JavaClass klass]
-  (->> klass
-       (.getAllInterfaces)
-       (mapv #(.getClassName ^JavaClass %))))
-
 (defn parse-flags [^AccessFlags flags]
   (cond-> #{}
     (.isAbstract flags) (conj :abstract)
@@ -44,10 +39,17 @@
 (defn analyze-classfile [filename]
   (let [klass (parse-classfile filename)]
     {:class/name (.getClassName klass)
-     :class/interfaces (class-interfaces klass)
-     :class/super (-> klass (.getSuperClass) (.getClassName))
      :class/filename (.getSourceFileName klass)
+     :class/version {:minor (.getMinor klass)
+                     :major (.getMajor klass)}
+
      :class/type (if (.isClass klass)
                    :class
                    :interface)
+
+     :class/flags (parse-flags klass)
+
+     :class/super (-> klass (.getSuperClass) (.getClassName))
+     :class/interfaces (vec (.getInterfaceNames klass))
+
      :class/fields (class-fields klass)}))
