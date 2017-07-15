@@ -23,34 +23,48 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
-(defmethod process-insn "return" [ctx _]
-  ctx)
+;; (defmethod process-insn "return" [ctx _]
+;;   ctx)
 
-(defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-class target-arg-types]} pool-element
-        args (stack/pop-n stack (count target-arg-types))]
+;; (defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+;;   (let [{:insn/keys [target-class target-arg-types]} pool-element
+;;         args (stack/pop-n stack (count target-arg-types))]
 
-    {:op :invoke-ctor
-     :target target-class
-     :args args}))
+;;     (assoc ctx
+;;            :stack (conj stack {:op :invoke-ctor
+;;                                :target target-class
+;;                                :args args}))))
 
-;; WIP no jump
-(defn process-insns [ctx bytecode]
-  ;; broken
-  #_(let [ctx (merge ctx initial-local-ctx)
-        ctx (reduce process-insn ctx bytecode)]
-    (dissoc ctx (keys initial-local-ctx))))
+(defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
+  (let [insn-n (get jump-table pc)
+        {:insn/keys [length] :as insn} (nth bc insn-n)
+        new-ctx (-> (process-insn ctx insn)
+                    (update :pc (fn [new-pc]
+                                  (if (= new-pc pc)
+                                    ;; last insn wasn't an explicit jump, goto next insn
+                                    (+ new-pc length)
+                                    new-pc))))]
+    (if-not (get jump-table (:pc new-ctx))
+      ;; pc is out of bounds, we're done
+      ;; TODO: do we need to pop the stack?
+      new-ctx
+      (recur new-ctx bc))))
+
+(defn process-method-insns [ctx {:method/keys [bytecode jump-table]}]
+  (let [ctx (merge ctx initial-local-ctx {:jump-table jump-table})
+        ctx (process-insns ctx bytecode)]
+    (apply dissoc ctx :jump-table (keys initial-local-ctx))))
 
 (defn process-static-init [ctx {:class/keys [methods] :as bc}]
-  (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<clinit>"})]
-    (process-insns ctx bytecode)))
+  (let [method (u/find-method methods {:method/name "<clinit>"})]
+    (process-method-insns ctx method)))
 
 (defn process-init [ctx {:class/keys [methods] :as bc}]
-  (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<init>"})]
-    (process-insns ctx bytecode)))
+  (let [method (u/find-method methods {:method/name "<init>"})]
+    (process-method-insns ctx method)))
 
-(defn decompile-fn-method [ctx {:method/keys [return-type arg-types bytecode local-variable-table]}]
-  (let [{:keys [ast]} (process-insns ctx bytecode)]
+(defn decompile-fn-method [ctx {:method/keys [return-type arg-types local-variable-table] :as method}]
+  (let [{:keys [ast]} (process-method-insns ctx method)]
     {:op :fn-method
      :args (for [i (range (count arg-types))
                  ;; WIP doesn't work if there's no local-variable-table
