@@ -1,10 +1,11 @@
 (ns clojure.tools.decompiler.bc
   (:require [clojure.java.io :as io])
-  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method ConstantPool ConstantObject ConstantCP)
-           (org.apache.bcel.generic Instruction InstructionList
-                                    BranchInstruction CPInstruction
-
-                                    ;LocalVariableInstruction, NEWARRAY
+  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
+                                      ConstantPool ConstantObject ConstantCP ConstantNameAndType
+                                      Utility)
+           (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction
+                                    ConstantPoolGen
+                                    LocalVariableInstruction ; NEWARRAY
                                     )))
 
 (set! *warn-on-reflection* true)
@@ -33,7 +34,7 @@
                  (str))
         name (.getName field)]
     {:field/name name
-     :field/class type
+     :field/type type
      :field/flags (parse-flags field)}))
 
 (defn class-fields [^JavaClass klass]
@@ -45,21 +46,35 @@
 
 (defmethod -parse-insn :default [_ _])
 
+(defmethod -parse-insn LocalVariableInstruction
+  [^JavaClass klass ^LocalVariableInstruction insn]
+  {:insn/local-variable-element {:insn/target-type (str (.getType insn (ConstantPoolGen. (.getConstantPool klass))))
+                                 :insn/target-index (.getIndex insn)}})
+
 (defmethod -parse-insn BranchInstruction
   [_ ^BranchInstruction insn]
   {:insn/jump-target (.getIndex insn)})
 
 (defn parse-pool-element [^ConstantPool pool idx]
   (let [constant (.getConstant pool idx)]
-    (if (instance? constant ConstantObject)
+    (if (instance? ConstantObject constant)
       (.getConstantValue ^ConstantObject constant pool)
       ;; methods + field refs
-      )))
+      (let [^ConstantCP constant constant
+            ^ConstantNameAndType name-and-type (.getConstant pool (.getNameAndTypeIndex constant))
+            signature (.getSignature name-and-type pool)]
+        (merge
+         {:insn/target-class (.getClass constant pool)
+          :insn/target-name (.getName name-and-type pool)}
+         (if (.startsWith signature "(")
+           {:insn/target-arg-types (vec (Utility/methodSignatureArgumentTypes signature))
+            :insn/target-ret-type (Utility/methodSignatureReturnType signature)}
+           {:insn/target-type (Utility/signatureToString signature)}))))))
 
 (defmethod -parse-insn CPInstruction
   [^JavaClass klass ^CPInstruction insn]
   (let [pool (.getConstantPool klass)]
-   {:insn/pool-element (parse-pool-element pool (.getIndex insn))}))
+    {:insn/pool-element (parse-pool-element pool (.getIndex insn))}))
 
 (defn parse-insn [^JavaClass klass ^Instruction insn]
   (merge
@@ -85,8 +100,8 @@
 (defn parse-method [^JavaClass klass ^Method method]
   {:method/name (.getName method)
    :method/flags (parse-flags method)
-   :method/return-class (-> method (.getReturnType) (str))
-   :method/arg-classes (->> method (.getArgumentTypes) (mapv str))
+   :method/return-type (-> method (.getReturnType) (str))
+   :method/arg-types (->> method (.getArgumentTypes) (mapv str))
    :method/bytecode (parse-bytecode klass method)})
 
 (defn class-methods [^JavaClass klass]
