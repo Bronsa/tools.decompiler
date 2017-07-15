@@ -46,9 +46,16 @@
 
 (defmethod -parse-insn :default [_ _])
 
+(defn type-from-pool-gen [^JavaClass klass ^LocalVariableInstruction insn]
+  (->> klass
+       (.getConstantPool)
+       (ConstantPoolGen.)
+       (.getType insn)
+       (str)))
+
 (defmethod -parse-insn LocalVariableInstruction
   [^JavaClass klass ^LocalVariableInstruction insn]
-  {:insn/local-variable-element {:insn/target-type (str (.getType insn (ConstantPoolGen. (.getConstantPool klass))))
+  {:insn/local-variable-element {:insn/target-type (type-from-pool-gen klass insn)
                                  :insn/target-index (.getIndex insn)}})
 
 (defmethod -parse-insn NEWARRAY
@@ -66,7 +73,7 @@
 (defmethod -parse-insn ConstantPushInstruction
   [^JavaClass klass ^ConstantPushInstruction insn]
   {:insn/constant-element {:insn/target-value (.getValue insn)
-                           :insn/target-type (str (.getType insn (ConstantPoolGen. (.getConstantPool klass))))}})
+                           :insn/target-type (type-from-pool-gen klass insn)}})
 
 (defn parse-pool-element [^ConstantPool pool idx]
   (let [constant (.getConstant pool idx)]
