@@ -2,9 +2,11 @@
   (:require [clojure.tools.decompiler.stack :as stack]
             [clojure.tools.decompiler.utils :as u]))
 
-(def initial-ctx {:stack []
-                  :local-variable-table {}
+(def initial-ctx {:fields {}
                   :ast {}})
+
+(def initial-local-ctx {:stack []
+                        :local-variable-table {}})
 
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
@@ -13,7 +15,9 @@
   ctx)
 
 (defn process-insns [ctx bytecode]
-  (reduce process-insn ctx bytecode))
+  (let [ctx (merge ctx initial-local-ctx)
+        ctx (reduce process-insn ctx bytecode)]
+    (dissoc ctx (keys initial-local-ctx))))
 
 (defn process-static-init [ctx {:class/keys [methods] :as bc}]
   (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<clinit>"})]
@@ -27,7 +31,7 @@
   (let [ctx (process-insns ctx bytecode)]
     {:op :fn-method}))
 
-(defn process-fn-methods [ctx {:class/keys [methods] :as bc}]
+(defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
         ;; WIP is DL enabled per fn or per fn method? I can't remember. Defensively assume the latter for now
@@ -38,9 +42,8 @@
                                                                         invokes-static))]
                                               invoke))
         methods-asts (map (partial decompile-fn-method ctx) invoke-methods)]
-    (assoc ctx
-           :ast {:op :fn
-                 :fn-methods [methods-asts]})))
+    {:op :fn
+     :fn-methods [methods-asts]}))
 
 (defn decompile-fn [{class-name :class/name
                      :class/keys [methods] :as bc}
@@ -52,8 +55,7 @@
     (-> ctx
         (process-static-init bc)
         (process-init bc)
-        (process-fn-methods bc)
-        :ast)))
+        (decompile-fn-methods bc))))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
   (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
