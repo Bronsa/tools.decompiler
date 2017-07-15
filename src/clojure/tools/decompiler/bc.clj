@@ -1,11 +1,11 @@
 (ns clojure.tools.decompiler.bc
   (:require [clojure.java.io :as io])
-  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method ConstantPool)
+  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method ConstantPool ConstantObject ConstantCP)
            (org.apache.bcel.generic Instruction InstructionList
-                                    ACONST_NULL, ArithmeticInstruction, ArrayInstruction, ARRAYLENGTH, ATHROW, BIPUSH,
-                                    BranchInstruction, BREAKPOINT, ConversionInstruction, CPInstruction, DCMPG, DCMPL,
-                                    DCONST, FCMPG, FCMPL, FCONST, ICONST, IMPDEP1, IMPDEP2, LCMP, LCONST, LocalVariableInstruction,
-                                    MONITORENTER, MONITOREXIT, NEWARRAY, NOP, RET, ReturnInstruction, SIPUSH, StackInstruction)))
+                                    BranchInstruction CPInstruction
+
+                                    ;LocalVariableInstruction, MONITORENTER, MONITOREXIT, NEWARRAY, ReturnInstruction, StackInstruction
+                                    )))
 
 (set! *warn-on-reflection* true)
 
@@ -43,8 +43,20 @@
 
 (defmulti -parse-insn (fn [^ConstantPool pool ^Instruction insn] (class insn)))
 
-(defmethod -parse-insn ACONST_NULL
-  [])
+(defmethod -parse-insn BranchInstruction
+  [_ ^BranchInstruction insn]
+  {:insn/jump-target (.getIndex insn)})
+
+(defn parse-pool-element [^ConstantPool pool idx]
+  (let [constant (.getConstant pool idx)]
+    (if (instance? constant ConstantObject)
+      (.getConstantValue ^ConstantObject constant pool)
+      ;; methods + field refs
+      )))
+
+(defmethod -parse-insn CPInstruction
+  [^ConstantPool pool ^CPInstruction insn]
+  {:insn/pool-element (parse-pool-element pool (.getIndex insn))})
 
 (defn parse-insn [^ConstantPool pool ^Instruction insn]
   {:insn/name (.getName insn)
