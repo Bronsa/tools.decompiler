@@ -6,33 +6,39 @@
                   :local-variable-table {}
                   :ast {}})
 
+;; process-* : bc, ctx -> ctx
+;; decompile-* : bc, ctx -> AST
+
 (defn process-insn [ctx insn]
   ctx)
 
 (defn process-insns [ctx bytecode]
   (reduce process-insn ctx bytecode))
 
-;; bc, ctx -> ctx
-(defn static-init [{:class/keys [methods] :as bc} ctx]
+(defn process-static-init [ctx {:class/keys [methods] :as bc}]
   (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<clinit>"})]
     (process-insns ctx bytecode)))
 
-(defn init [{:class/keys [methods] :as bc} ctx]
+(defn process-init [ctx {:class/keys [methods] :as bc}]
   (let [{:method/keys [bytecode]} (u/find-method methods {:method/name "<init>"})]
     (process-insns ctx bytecode)))
 
-(defn decompile-fn-methods [bc ctx]
+(defn decompile-fn-method [ctx method]
+  )
+
+(defn process-fn-methods [ctx {:class/keys [methods] :as bc}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
-        invoke-methods (into invoke-static (for [{:method/keys [arg-types] :as invoke} invokes
-                                                 :let [argc (count arg-types)]
-                                                 :when (empty? (filter (fn [:method/keys [arg-types]]
-                                                                         (= (count arg-types) argc))
-                                                                       invoke-static))]))
+        invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
+                                                  :let [argc (count arg-types)]
+                                                  :when (empty? (filter (fn [{:method/keys [arg-types]}]
+                                                                          (= (count arg-types) argc))
+                                                                        invokes-static))]
+                                              invoke))
         methods-asts (map (partial decompile-fn-method ctx) invoke-methods)]
     (assoc ctx
            :ast {:op :fn
-                 :fn-methods [method-asts]})))
+                 :fn-methods [methods-asts]})))
 
 (defn decompile-fn [{class-name :class/name
                      :class/keys [methods] :as bc}
@@ -41,10 +47,11 @@
         ns (namespace class-name)
         fn-name (name class-name)]
 
-    (->> ctx
-         (static-init bc)
-         (init bc)
-         (decompile-fn-methods bc))))
+    (-> ctx
+        (process-static-init bc)
+        (process-init bc)
+        (process-fn-methods bc)
+        :ast)))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
   (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
