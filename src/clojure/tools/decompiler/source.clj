@@ -27,16 +27,17 @@
   ctx)
 
 (defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-class target-arg-types]}
+  (let [{:insn/keys [target-class target-arg-types]} pool-element
         args (stack/pop-n stack (count target-arg-types))]
 
-    {:op :new
+    {:op :invoke-ctor
      :target target-class
      :args args}))
 
 ;; WIP no jump
 (defn process-insns [ctx bytecode]
-  (let [ctx (merge ctx initial-local-ctx)
+  ;; broken
+  #_(let [ctx (merge ctx initial-local-ctx)
         ctx (reduce process-insn ctx bytecode)]
     (dissoc ctx (keys initial-local-ctx))))
 

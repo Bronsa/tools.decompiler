@@ -126,16 +126,20 @@
    (into {})))
 
 (defn parse-method [^JavaClass klass ^Method method]
-  {:method/name (.getName method)
-   :method/flags (parse-flags method)
-   :method/return-type (-> method (.getReturnType) (str))
-   :method/arg-types (->> method (.getArgumentTypes) (mapv str))
-   :method/bytecode (parse-bytecode klass method)
-   :method/local-variable-table (or (some-> method
-                                            (.getLocalVariableTable)
-                                            (.getLocalVariableTable)
-                                            (parse-local-variable-table))
-                                    {})})
+  (let [bytecode (parse-bytecode klass method)]
+    {:method/name (.getName method)
+     :method/flags (parse-flags method)
+     :method/return-type (-> method (.getReturnType) (str))
+     :method/arg-types (->> method (.getArgumentTypes) (mapv str))
+     :method/bytecode bytecode
+     :method/jump-table (into {} (for [i (range (count bytecode))
+                                       :let [{:keys [insn/label]} (nth bytecode i)]]
+                                   [label i]))
+     :method/local-variable-table (or (some-> method
+                                              (.getLocalVariableTable)
+                                              (.getLocalVariableTable)
+                                              (parse-local-variable-table))
+                                      {})}))
 
 (defn class-methods [^JavaClass klass]
   (->> klass
