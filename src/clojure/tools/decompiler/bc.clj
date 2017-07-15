@@ -43,6 +43,8 @@
 
 (defmulti -parse-insn (fn [^JavaClass klass ^Instruction insn] (class insn)))
 
+(defmethod -parse-insn :default [_ _])
+
 (defmethod -parse-insn BranchInstruction
   [_ ^BranchInstruction insn]
   {:insn/jump-target (.getIndex insn)})
@@ -60,8 +62,10 @@
    {:insn/pool-element (parse-pool-element pool (.getIndex insn))}))
 
 (defn parse-insn [^JavaClass klass ^Instruction insn]
-  {:insn/name (.getName insn)
-   :insn/length (.getLength insn)})
+  (merge
+   {:insn/name (.getName insn)
+    :insn/length (.getLength insn)}
+   (-parse-insn klass insn)))
 
 (defn add-labels [insns insn]
   (let [label (if-let [{:insn/keys [label length]} (peek insns)]
