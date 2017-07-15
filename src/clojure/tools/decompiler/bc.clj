@@ -3,7 +3,7 @@
   (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility)
-           (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction
+           (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
                                     ConstantPoolGen LocalVariableInstruction NEWARRAY)))
 
 (set! *warn-on-reflection* true)
@@ -57,10 +57,15 @@
   [_ ^BranchInstruction insn]
   {:insn/jump-target (.getIndex insn)})
 
+(defmethod -parse-insn ConstantPushInstruction
+  [^JavaClass klass ^ConstantPushInstruction insn]
+  {:insn/constant-element {:insn/target-value (.getValue insn)
+                           :insn/target-type (str (.getType insn (ConstantPoolGen. (.getConstantPool klass))))}})
+
 (defn parse-pool-element [^ConstantPool pool idx]
   (let [constant (.getConstant pool idx)]
     (if (instance? ConstantObject constant)
-      (.getConstantValue ^ConstantObject constant pool)
+      {:insn/target-value (.getConstantValue ^ConstantObject constant pool)}
       ;; methods + field refs
       (let [^ConstantCP constant constant
             ^ConstantNameAndType name-and-type (.getConstant pool (.getNameAndTypeIndex constant))
@@ -69,8 +74,8 @@
          {:insn/target-class (.getClass constant pool)
           :insn/target-name (.getName name-and-type pool)}
          (if (.startsWith signature "(")
-           {:insn/target-arg-types (vec (Utility/methodSignatureArgumentTypes signature))
-            :insn/target-ret-type (Utility/methodSignatureReturnType signature)}
+           {:insn/target-arg-types (vec (Utility/methodSignatureArgumentTypes signature false))
+            :insn/target-ret-type (Utility/methodSignatureReturnType signature false)}
            {:insn/target-type (Utility/signatureToString signature)}))))))
 
 (defmethod -parse-insn CPInstruction
@@ -130,7 +135,7 @@
 
 (comment
 
-  (def filename (-> "test$foo.class" io/resource .getFile))
+  (def filename (-> "Test.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
   (def m (first (.getMethods klass)))
