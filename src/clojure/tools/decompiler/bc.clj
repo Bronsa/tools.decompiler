@@ -1,6 +1,6 @@
 (ns clojure.tools.decompiler.bc
   (:require [clojure.java.io :as io])
-  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags
+  (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
 
                                       ;; ConstantClass ConstantCP ConstantDouble ConstantFloat ConstantInteger
                                       ;; ConstantLong ConstantMethodHandle ConstantMethodType
@@ -52,7 +52,20 @@
 ;;        (.getConstantPool)
 ;;        (keep parse-constant)))
 
-(defn class-methods [klass])
+(defn parse-bytecode [^JavaClass klass ^Method method]
+  )
+
+(defn parse-method [^JavaClass klass ^Method method]
+  {:class.method/name (.getName method)
+   :class.method/flags (parse-flags method)
+   :class.method/return-class (-> method (.getReturnType) (str))
+   :class.method/arg-classes (->> method (.getArgumentTypes) (mapv str))
+   :class.method/bytecode (parse-bytecode klass method)})
+
+(defn class-methods [^JavaClass klass]
+  (->> klass
+       (.getMethods)
+       (mapv (partial parse-method klass))))
 
 (defn analyze-classfile [filename]
   (let [klass (parse-classfile filename)]
@@ -79,7 +92,8 @@
   (def filename (-> "test$foo.class" io/resource .getFile))
   (def klass (parse-classfile filename))
 
+  (def m (first (.getMethods klass)))
 
-  (class-interfaces klass)
+  (keys (bean m))
 
   )
