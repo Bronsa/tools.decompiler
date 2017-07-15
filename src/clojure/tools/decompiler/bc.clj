@@ -4,9 +4,7 @@
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction
-                                    ConstantPoolGen
-                                    LocalVariableInstruction ; NEWARRAY
-                                    )))
+                                    ConstantPoolGen LocalVariableInstruction NEWARRAY)))
 
 (set! *warn-on-reflection* true)
 
@@ -50,6 +48,10 @@
   [^JavaClass klass ^LocalVariableInstruction insn]
   {:insn/local-variable-element {:insn/target-type (str (.getType insn (ConstantPoolGen. (.getConstantPool klass))))
                                  :insn/target-index (.getIndex insn)}})
+
+(defmethod -parse-insn NEWARRAY
+  [^JavaClass klass ^NEWARRAY insn]
+  {:insn/target-type (str (.getType insn))})
 
 (defmethod -parse-insn BranchInstruction
   [_ ^BranchInstruction insn]
