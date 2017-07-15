@@ -89,6 +89,7 @@
      :ast ast}))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
+  ;; TODO: record, type, ns, genclass, geninterface, proxy
   (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
     (decompile-fn bc initial-ctx)
     (throw (Exception. ":("))))
