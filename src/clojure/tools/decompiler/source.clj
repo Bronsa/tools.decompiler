@@ -7,10 +7,11 @@
                   :ast {}})
 
 ; bc, ctx -> ctx
-(defn static-init [bc ctx]
-  ctx)
+(defn static-init [{:class/keys [methods] :as bc} ctx]
+  (let [init (u/find-method methods {:method/name "<clinit>"})]
+    ctx))
 
-(defn init [bc ctx]
+(defn init [{:class/keys [methods] :as bc} ctx]
   ctx)
 
 (defn decompile-fn [{class-name :class/name
@@ -22,10 +23,19 @@
 
     (->> ctx
          (static-init bc)
-         (init bc)
-         )))
+         (init bc))))
 
-(defn decompile-class [{:class/keys [super] :as bc}]
+(defn bc->ast [{:class/keys [super] :as bc}]
   (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
     (decompile-fn bc initial-ctx)
     (throw (Exception. ":("))))
+
+(comment
+  (require '[clojure.tools.decompiler.bc :as bc]
+           '[clojure.java.io :as io])
+
+  (def filename (-> "test$foo.class" io/resource .getFile))
+  (def bc (bc/analyze-classfile filename))
+
+  (bc->ast bc)
+  )

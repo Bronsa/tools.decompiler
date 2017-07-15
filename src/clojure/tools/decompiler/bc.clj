@@ -1,5 +1,4 @@
 (ns clojure.tools.decompiler.bc
-  (:require [clojure.java.io :as io])
   (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility)
@@ -147,6 +146,7 @@
      :class/methods (class-methods klass)}))
 
 (comment
+  (require '[clojure.java.io :as io])
 
   (def filename (-> "test$foo.class" io/resource .getFile))
   (def klass (parse-classfile filename))
