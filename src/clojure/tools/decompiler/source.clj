@@ -8,6 +8,7 @@
                   :ast {}})
 
 (def initial-local-ctx {:stack []
+                        :pc 0
                         :local-variable-table {}})
 
 ;; process-* : bc, ctx -> ctx
@@ -16,6 +17,24 @@
 (defn process-insn [ctx insn]
   ctx)
 
+(defmulti process-insn (fn [ctx {:insn/keys [name]}] name))
+
+(defmethod process-insn :default [ctx {:insn/keys [name]}]
+  (println "INSN NOT HANDLED:" name)
+  ctx)
+
+(defmethod process-insn "return" [ctx _]
+  ctx)
+
+(defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-arg-types]}
+        args (stack/pop-n stack (count target-arg-types))]
+
+    {:op :new
+     :target target-class
+     :args args}))
+
+;; WIP no jump
 (defn process-insns [ctx bytecode]
   (let [ctx (merge ctx initial-local-ctx)
         ctx (reduce process-insn ctx bytecode)]
@@ -59,12 +78,14 @@
                     ctx]
   (let [class-name (u/demunge class-name)
         ns (namespace class-name)
-        fn-name (name class-name)]
-
-    (-> ctx
-        (process-static-init bc)
-        (process-init bc)
-        (decompile-fn-methods bc))))
+        fn-name (name class-name)
+        ast (-> ctx
+                (process-static-init bc)
+                (process-init bc)
+                (decompile-fn-methods bc))]
+    {:ns ns
+     :fn-name fn-name
+     :ast ast}))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
   (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
