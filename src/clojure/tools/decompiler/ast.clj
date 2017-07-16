@@ -36,6 +36,10 @@
     (-> ctx
         (update :stack conj val))))
 
+(defmethod process-insn :pop [{:keys [stack] :as ctx} _]
+  (-> ctx
+      (update :stack pop)))
+
 (defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
         {dimension :val} (peek stack)
