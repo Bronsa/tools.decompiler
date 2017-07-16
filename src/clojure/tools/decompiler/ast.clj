@@ -54,7 +54,7 @@
         (update :stack pop)
         (update :stack conj expr))))
 
-(defmethod process-insn :aastore [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/array-store [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [[array {index :val} value] (peek-n stack 3)]
     (-> ctx
         (update :stack pop-n 3)

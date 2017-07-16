@@ -241,7 +241,16 @@
       (derive :lload_0 ::load-insn)
       (derive :lload_1 ::load-insn)
       (derive :lload_2 ::load-insn)
-      (derive :lload_3 ::load-insn)))
+      (derive :lload_3 ::load-insn)
+
+      (derive :aastore ::array-store)
+      (derive :bastore ::array-store)
+      (derive :castore ::array-store)
+      (derive :dastore ::array-store)
+      (derive :fastore ::array-store)
+      (derive :iastore ::array-store)
+      (derive :lastore ::array-store)
+      (derive :sastore ::array-store)))
 
 (comment
   (require '[clojure.java.io :as io])
