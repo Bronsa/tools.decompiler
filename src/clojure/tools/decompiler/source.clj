@@ -11,6 +11,9 @@
 (defmethod -ast->clj :vector [{:keys [items]}]
   (mapv -ast->clj items))
 
+(defmethod -ast->clj :set [{:keys [items]}]
+  (into #{} (map -ast->clj) items))
+
 (defmethod -ast->clj :array [{:keys [items]}]
   (object-array (mapv -ast->clj items)))
 

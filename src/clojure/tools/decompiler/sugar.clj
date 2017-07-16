@@ -8,6 +8,9 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :set [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :vector [ast]
   ast)
 
@@ -102,9 +105,9 @@
        :items args}
 
       (and (= target "clojure.lang.RT")
-           (= method "vector")
+           (#{"vector" "set"} method)
            (= (-> args first :op) :array))
-      {:op :vector
+      {:op (keyword method)
        :items (-> args first :items)}
 
       :else
