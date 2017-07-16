@@ -31,7 +31,13 @@
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
 
+(defmethod process-insn :dup [{:keys [stack] :as ctx} _]
+  (let [val (peek stack)]
+    (-> ctx
+        (update :stack conj val))))
+
 (defmethod process-insn :areturn [{:keys [stack] :as ctx} _]
+  ;; WIP stack contains statements + ret, this is only returning ret
   (let [ast (peek stack)]
     (-> ctx
         (update :stack pop)
