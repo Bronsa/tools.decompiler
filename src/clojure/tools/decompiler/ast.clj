@@ -2,8 +2,6 @@
   (:require [clojure.tools.decompiler.stack :as stack]
             [clojure.tools.decompiler.utils :as u]))
 
-;; WIP worth conforming the AST with t.a?
-
 (def initial-ctx {:fields {}
                   :ast {}})
 
@@ -11,42 +9,68 @@
                         :pc 0
                         :local-variable-table {}})
 
+(def insn-h
+  (-> (make-hierarchy)
+      (derive :ldc ::cp-insn)
+      (derive :ldc_w ::cp-insn)
+      (derive :aconst_null ::cp-insn)
+
+      (derive :aload ::load-insn)
+      (derive :aload_0 ::load-insn)
+      (derive :aload_1 ::load-insn)
+      (derive :aload_2 ::load-insn)
+      (derive :aload_3 ::load-insn)
+      (derive :dload ::load-insn)
+      (derive :dload_0 ::load-insn)
+      (derive :dload_1 ::load-insn)
+      (derive :dload_2 ::load-insn)
+      (derive :dload_3 ::load-insn)
+      (derive :fload ::load-insn)
+      (derive :fload_0 ::load-insn)
+      (derive :fload_1 ::load-insn)
+      (derive :fload_2 ::load-insn)
+      (derive :fload_3 ::load-insn)
+      (derive :iload ::load-insn)
+      (derive :iload_0 ::load-insn)
+      (derive :iload_1 ::load-insn)
+      (derive :iload_2 ::load-insn)
+      (derive :iload_3 ::load-insn)
+      (derive :lload ::load-insn)
+      (derive :lload_0 ::load-insn)
+      (derive :lload_1 ::load-insn)
+      (derive :lload_2 ::load-insn)
+      (derive :lload_3 ::load-insn)))
+
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
 
-(defn process-insn [ctx insn]
-  ctx)
-
-(defmulti process-insn (fn [ctx {:insn/keys [name]}] name))
+(defmulti process-insn
+  (fn [ctx {:insn/keys [name]}] (keyword name))
+  :hierarchy #'insn-h)
 
 (defmethod process-insn :default [ctx {:insn/keys [name]}]
   (println "INSN NOT HANDLED:" name)
   ctx)
 
-(defmethod process-insn "return" [ctx _]
+(defmethod process-insn :return [ctx _]
   ctx)
 
-(defmethod process-insn "ldc" [ctx {:insn/keys [pool-element]}]
+(defmethod process-insn ::cp-insn [ctx {:insn/keys [pool-element]}]
   (-> ctx
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
 
-(defmethod process-insn "aconst_null" [ctx _]
-  (-> ctx
-      (update :stack conj {:op :const
-                           :val nil})))
-
-(defmethod process-insn "areturn" [{:keys [stack] :as ctx} _]
+(defmethod process-insn :areturn [{:keys [stack] :as ctx} _]
   (let [ast (peek stack)]
     (-> ctx
         (update :stack pop)
         (assoc :ast ast))))
 
-(defmethod process-insn "aload_0" [{:keys [stack local-variable-table] :as ctx} _]
+(defmethod process-insn ::load-insn [{:keys [stack local-variable-table] :as ctx} _]
   (-> ctx
       (update :stack conj (get local-variable-table 0))))
 
-(defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))]
     (-> ctx
