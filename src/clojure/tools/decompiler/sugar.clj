@@ -56,8 +56,7 @@
       :ns (:ns target)}
 
      :else
-     ast))
-  )
+     ast)))
 
 (defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
@@ -98,6 +97,14 @@
 
       {:op :vector
        :items args}
+
+      (and (= target "clojure.lang.RT")
+           (= method "vector")
+           (= (-> args first :op) :invoke)
+           (= (-> args first :fn) {:op :var :ns "clojure.core" :name "into-array"})
+           (= (-> args first :args second :op :vector)))
+      {:op :vector
+       :items (-> args first :args second :items)}
 
       :else
       ast)))
