@@ -15,6 +15,9 @@
       (derive :ldc_w ::const-insn)
       (derive :aconst_null ::const-insn)
 
+      (derive :invokeinterface ::invoke-instance-method)
+      (derive :invokevirtual ::invoke-instance-method)
+
       (derive :aload ::load-insn)
       (derive :aload_0 ::load-insn)
       (derive :aload_1 ::load-insn)
@@ -75,6 +78,19 @@
         argc (count (conj target-arg-types target-class))]
     (-> ctx
         (update :stack pop-n argc))))
+
+(defmethod process-insn ::invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name target-arg-types]} pool-element
+        argc (count (conj target-arg-types target-class))
+        [target & args] (peek-n stack argc)]
+    (-> ctx
+        (update :stack pop-n argc)
+        (update :stack conj {:op :invoke-instance
+                             :method target-name
+                             :target target
+                             :arg-types target-arg-types
+                             :target-class target-class
+                             :args args}))))
 
 (defmethod process-insn :putstatic [{:keys [stack class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element

@@ -25,6 +25,9 @@
   (-> ast
       (update :body -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :invoke-instance [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
 

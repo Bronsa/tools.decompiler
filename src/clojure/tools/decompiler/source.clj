@@ -18,6 +18,9 @@
 (defmethod -ast->clj :invoke-static [{:keys [target method args]}]
   `(~(symbol target method) ~@(map -ast->clj args)))
 
+(defmethod -ast->clj :invoke-instance [{:keys [target method args]}]
+  `(~(symbol (str "." method)) ~(-ast->clj target) ~@(map -ast->clj args)))
+
 (defmethod -ast->clj :var [{:keys [ns name]}]
   (symbol ns name))
 
