@@ -2,6 +2,8 @@
   (:require [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
             [clojure.tools.decompiler.utils :as u]))
 
+;; WIP casting, type hints
+
 (def initial-ctx {:fields {}
                   :ast {}})
 
@@ -178,28 +180,34 @@
       new-ctx
       (recur new-ctx bc))))
 
-(defn process-method-insns [ctx {:method/keys [bytecode jump-table]}]
-  (let [ctx (merge ctx initial-local-ctx {:jump-table jump-table})
-        ctx (process-insns ctx bytecode)]
+(defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table]}]
+  (let [ctx (-> ctx
+                (merge initial-local-ctx {:jump-table jump-table})
+                (assoc-in [:local-variable-table 0] {:op :local :name fn-name})
+                (merge-local-variable-table local-variable-table)
+                (process-insns bytecode))]
     (apply dissoc ctx :jump-table (keys initial-local-ctx))))
 
 (defn process-static-init [ctx {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<clinit>"})]
     (process-method-insns ctx method)))
 
-;; WIP push args, not just this
+(defn merge-local-variable-table [ctx local-variable-table]
+  (update ctx :local-variable-table merge
+         (->> (for [[idx {:local-variable/keys [name]}] local-variable-table]
+                [idx {:op :local
+                      :name name}])
+              (into {}))))
 
-(defn process-init [{:keys [fn-name] :as ctx} {:class/keys [methods] :as bc}]
+(defn process-init [ctx {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<init>"})]
-    (process-method-insns (assoc-in ctx [:local-variable-table 0] {:op :local :name fn-name})
-                          method)))
+    (process-method-insns ctx method)))
 
 ;; WIP push args, not just this
 
-(defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [return-type arg-types local-variable-table flags]
-                                                      :as method}]
-  (let [ctx (cond-> ctx (not (:static flags)) (assoc-in [:local-variable-table 0] {:op :local :name fn-name}))
-        {:keys [ast]} (process-method-insns ctx method)]
+(defn decompile-fn-method [ctx {:method/keys [return-type arg-types local-variable-table flags]
+                                :as method}]
+  (let [{:keys [ast]} (process-method-insns ctx method)]
     {:op :fn-method
      :args (for [i (range (count arg-types))
                  ;; WIP doesn't work if there's no local-variable-table
