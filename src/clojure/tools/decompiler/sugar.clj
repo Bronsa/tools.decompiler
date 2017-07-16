@@ -131,9 +131,9 @@
        :items args}
 
       (and (= target "clojure.lang.RT")
-           (#{"vector" "set" "mapUniqueKeys"} method)
+           (#{"vector" "set" "mapUniqueKeys" "map"} method)
            (= (-> args first :op) :array))
-      {:op ({"vector" :vector "set" :set "mapUniqueKeys" :map} method)
+      {:op ({"vector" :vector "set" :set "mapUniqueKeys" :map "map" :map} method)
        :items (-> args first :!items deref)}
 
       :else
