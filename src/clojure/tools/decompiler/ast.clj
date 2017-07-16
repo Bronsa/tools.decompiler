@@ -11,9 +11,9 @@
 
 (def insn-h
   (-> (make-hierarchy)
-      (derive :ldc ::cp-insn)
-      (derive :ldc_w ::cp-insn)
-      (derive :aconst_null ::cp-insn)
+      (derive :ldc ::const-insn)
+      (derive :ldc_w ::const-insn)
+      (derive :aconst_null ::const-insn)
 
       (derive :aload ::load-insn)
       (derive :aload_0 ::load-insn)
@@ -55,7 +55,7 @@
 (defmethod process-insn :return [ctx _]
   ctx)
 
-(defmethod process-insn ::cp-insn [ctx {:insn/keys [pool-element]}]
+(defmethod process-insn ::const-insn [ctx {:insn/keys [pool-element]}]
   (-> ctx
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
