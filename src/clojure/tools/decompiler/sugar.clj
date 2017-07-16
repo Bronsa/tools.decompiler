@@ -101,10 +101,10 @@
       (and (= target "clojure.lang.RT")
            (= method "vector")
            (= (-> args first :op) :invoke)
-           (= (-> args first :fn) {:op :var :ns "clojure.core" :name "into-array"})
-           (= (-> args first :args second :op :vector)))
+           (= (-> args first :fn) {:op :var :ns "clojure.core" :name "object-array"})
+           (= (-> args first :args first :op :vector)))
       {:op :vector
-       :items (-> args first :args second :items)}
+       :items (-> args first :args fisrt :items)}
 
       :else
       ast)))

@@ -43,11 +43,8 @@
         expr {:op :invoke
               :fn {:op :var
                    :ns "clojure.core"
-                   :name "into-array"}
-              :args [{:op :const
-                      ;; WIP handle primitives & arrays
-                      :val (symbol target-type)}
-                     {:op :vector
+                   :name "object-array"}
+              :args [{:op :vector
                       :items (vec (repeat dimension {:op :const :val nil}))}]}]
 
     (-> ctx
