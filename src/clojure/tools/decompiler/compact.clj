@@ -1,4 +1,4 @@
-(ns clojure.tools.decompiler.compaction)
+(ns clojure.tools.decompiler.compact)
 
 (defn macrocompact [{:keys [source] :as fast}]
   (if (= 'fn* (first source))
