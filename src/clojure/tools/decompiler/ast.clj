@@ -31,6 +31,11 @@
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
 
+(defmethod process-insn "aconst_null" [ctx _]
+  (-> ctx
+      (update :stack conj {:op :const
+                           :val nil})))
+
 (defmethod process-insn "areturn" [{:keys [stack] :as ctx} _]
   (let [ast (peek stack)]
     (-> ctx
