@@ -169,6 +169,7 @@
   (-> (make-hierarchy)
       (derive :ldc ::const-insn)
       (derive :ldc_w ::const-insn)
+      (derive :ldc2_w ::const-insn)
       (derive :aconst_null ::const-insn)
       (derive :bipush ::const-insn)
       (derive :dconst_0 ::const-insn)
