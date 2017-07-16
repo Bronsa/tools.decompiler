@@ -42,15 +42,10 @@
       (update :stack conj (get local-variable-table 0))))
 
 (defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-
   (let [{:insn/keys [target-class target-arg-types]} pool-element
-        ;; WIP check if target is first or last
-        [target & args] (stack/pop-n stack (count (conj target-arg-types target-class)))]
+        argc (count (conj target-arg-types target-class))]
     (-> ctx
-        (update :stack conj {:op :invoke-ctor
-                             :target-class target-class
-                             :target target
-                             :args args}))))
+        (update :stack stack/pop-n argc))))
 
 (defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
   (let [insn-n (get jump-table pc)
