@@ -11,6 +11,9 @@
 (defmethod -ast->sugared-ast :keyword [ast]
   ast)
 
+(defmethod -ast->sugared-ast :local [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :var [ast]
   ast)
 

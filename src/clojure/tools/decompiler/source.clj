@@ -5,6 +5,9 @@
 (defmethod -ast->clj :const [{:keys [val]}]
   val)
 
+(defmethod -ast->clj :local [{:keys [name]}]
+  (symbol name))
+
 (defmethod -ast->clj :fn [{:keys [fn-methods]}]
   `(fn* ~@(map -ast->clj fn-methods)))
 
