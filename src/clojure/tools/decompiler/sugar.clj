@@ -14,6 +14,9 @@
 (defmethod -ast->sugared-ast :var [ast]
   ast)
 
+(defmethod -ast->sugared-ast :the-var [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :invoke [ast]
   ast)
 
@@ -25,8 +28,29 @@
   (-> ast
       (update :body -ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :invoke-instance [ast]
-  ast)
+(defmethod -ast->sugared-ast :invoke-instance [{:keys [method target-class] :as ast}]
+  (let [{:keys [target args] :as ast} (-> ast
+                                         (update :target -ast->sugared-ast)
+                                         (update ast :args #(mapv -ast->sugared-ast %)))]
+   (cond
+
+     (and (= target-class "clojure.lang.IFn")
+          (= method "invoke"))
+
+     {:op :invoke
+      :fn target
+      :args args}
+
+     (and (= target-class "clojure.lang.Var")
+          (= method "getRawRoot")
+          (= (:op target) :the-var))
+     {:op :var
+      :name (:name target)
+      :ns (:ns target)}
+
+     :else
+     ast))
+  )
 
 (defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
@@ -39,6 +63,15 @@
            (every? (comp #{:const} :op) args))
 
       {:op :keyword
+       :ns (:val (first args))
+       :name (:val (second args))}
+
+      (and (= target "clojure.lang.RT")
+           (= method "var")
+           (= 2 (count args))
+           (every? (comp #{:const} :op) args))
+
+      {:op :the-var
        :ns (:val (first args))
        :name (:val (second args))}
 

@@ -24,6 +24,9 @@
 (defmethod -ast->clj :var [{:keys [ns name]}]
   (symbol ns name))
 
+(defmethod -ast->clj :the-var [{:keys [ns name]}]
+  `(var ~(symbol ns name)))
+
 (defmethod -ast->clj :invoke [{:keys [fn args]}]
   `(~(-ast->clj fn) ~@(map -ast->clj args)))
 
