@@ -8,6 +8,9 @@
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
 
+(defmethod -ast->clj :vector [{:keys [items]}]
+  (mapv -ast->clj items))
+
 (defmethod -ast->clj :fn [{:keys [fn-methods]}]
   `(fn* ~@(map -ast->clj fn-methods)))
 

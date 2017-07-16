@@ -8,6 +8,9 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :vector [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :keyword [ast]
   ast)
 
@@ -47,6 +50,7 @@
      (and (= target-class "clojure.lang.Var")
           (= method "getRawRoot")
           (= (:op target) :the-var))
+
      {:op :var
       :name (:name target)
       :ns (:ns target)}
@@ -81,12 +85,19 @@
       ;; best effort for now, should do better to ensure it's a var
       (and (= method "invokeStatic")
            (.contains target "$"))
+
       (let [[ns fn-name] ((juxt namespace name) (-> target u/ungensym u/demunge))]
        {:op :invoke
         :fn {:op :var
              :ns ns
              :name fn-name}
         :args args})
+
+      (and (= target "clojure.lang.Tuple")
+           (= method "create"))
+
+      {:op :vector
+       :items args}
 
       :else
       ast)))
