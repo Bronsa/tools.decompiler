@@ -1,4 +1,5 @@
-(ns clojure.tools.decompiler.sugar)
+(ns clojure.tools.decompiler.sugar
+  (:require [clojure.tools.decompiler.utils :as u]))
 
 ;; WIP this could use a postwalk
 
@@ -10,6 +11,12 @@
 (defmethod -ast->sugared-ast :keyword [ast]
   ast)
 
+(defmethod -ast->sugared-ast :var [ast]
+  ast)
+
+(defmethod -ast->sugared-ast :invoke [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :fn [ast]
   (-> ast
       (update :fn-methods #(mapv -ast->sugared-ast %))))
@@ -18,7 +25,7 @@
   (-> ast
       (update :body -ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :invoke-static [{:keys [target method] :as ast}]
+(defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
 
     (cond
@@ -31,6 +38,16 @@
       {:op :keyword
        :ns (:val (first args))
        :name (:val (second args))}
+
+      ;; best effort for now, should do better to ensure it's a var
+      (and (= method "invokeStatic")
+           (.contains target "$"))
+      (let [[ns fn-name] ((juxt namespace name) (-> target u/ungensym u/demunge))]
+       {:op :invoke
+        :fn {:op :var
+             :ns ns
+             :name fn-name}
+        :args args})
 
       :else
       ast)))

@@ -1,5 +1,9 @@
 (ns clojure.tools.decompiler.utils
+  (:require [clojure.string :as s])
   (:import clojure.lang.Compiler))
+
+(defn ungensym [s]
+  (s/replace s #"(__[0-9]+)" ""))
 
 (defn demunge [s]
   (symbol (Compiler/demunge s)))

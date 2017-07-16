@@ -18,9 +18,16 @@
 (defmethod -ast->clj :invoke-static [{:keys [target method args]}]
   `(~(symbol target method) ~@(map -ast->clj args)))
 
+(defmethod -ast->clj :var [{:keys [ns name]}]
+  (symbol ns name))
+
+(defmethod -ast->clj :invoke [{:keys [fn args]}]
+  `(~(-ast->clj fn) ~@(map -ast->clj args)))
+
 (defn ast->clj [{:keys [ast] :as fast}]
   (-> fast
       (assoc :source (-ast->clj ast))))
+
 
 (comment
   (require '[clojure.tools.decompiler.bc :as bc]
