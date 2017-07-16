@@ -1,5 +1,6 @@
 (ns clojure.tools.decompiler.ast
   (:require [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
+            [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.utils :as u]))
 
 ;; WIP casting, type hints
@@ -11,73 +12,12 @@
                         :pc 0
                         :local-variable-table {}})
 
-(def insn-h
-  (-> (make-hierarchy)
-      (derive :ldc ::const-insn)
-      (derive :ldc_w ::const-insn)
-      (derive :aconst_null ::const-insn)
-
-      (derive :invokeinterface ::invoke-instance-method)
-      (derive :invokevirtual ::invoke-instance-method)
-
-      (derive :astore ::store-insn)
-      (derive :astore_0 ::store-insn)
-      (derive :astore_1 ::store-insn)
-      (derive :astore_2 ::store-insn)
-      (derive :astore_3 ::store-insn)
-      (derive :dstore ::store-insn)
-      (derive :dstore_0 ::store-insn)
-      (derive :dstore_1 ::store-insn)
-      (derive :dstore_2 ::store-insn)
-      (derive :dstore_3 ::store-insn)
-      (derive :fstore ::store-insn)
-      (derive :fstore_0 ::store-insn)
-      (derive :fstore_1 ::store-insn)
-      (derive :fstore_2 ::store-insn)
-      (derive :fstore_3 ::store-insn)
-      (derive :istore ::store-insn)
-      (derive :istore_0 ::store-insn)
-      (derive :istore_1 ::store-insn)
-      (derive :istore_2 ::store-insn)
-      (derive :istore_3 ::store-insn)
-      (derive :lstore ::store-insn)
-      (derive :lstore_0 ::store-insn)
-      (derive :lstore_1 ::store-insn)
-      (derive :lstore_2 ::store-insn)
-      (derive :lstore_3 ::store-insn)
-
-      (derive :aload ::load-insn)
-      (derive :aload_0 ::load-insn)
-      (derive :aload_1 ::load-insn)
-      (derive :aload_2 ::load-insn)
-      (derive :aload_3 ::load-insn)
-      (derive :dload ::load-insn)
-      (derive :dload_0 ::load-insn)
-      (derive :dload_1 ::load-insn)
-      (derive :dload_2 ::load-insn)
-      (derive :dload_3 ::load-insn)
-      (derive :fload ::load-insn)
-      (derive :fload_0 ::load-insn)
-      (derive :fload_1 ::load-insn)
-      (derive :fload_2 ::load-insn)
-      (derive :fload_3 ::load-insn)
-      (derive :iload ::load-insn)
-      (derive :iload_0 ::load-insn)
-      (derive :iload_1 ::load-insn)
-      (derive :iload_2 ::load-insn)
-      (derive :iload_3 ::load-insn)
-      (derive :lload ::load-insn)
-      (derive :lload_0 ::load-insn)
-      (derive :lload_1 ::load-insn)
-      (derive :lload_2 ::load-insn)
-      (derive :lload_3 ::load-insn)))
-
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
 
 (defmulti process-insn
   (fn [ctx {:insn/keys [name]}] (keyword name))
-  :hierarchy #'insn-h)
+  :hierarchy #'bc/insn-h)
 
 (defmethod process-insn :default [ctx {:insn/keys [name]}]
   (println "INSN NOT HANDLED:" name)
@@ -86,7 +26,7 @@
 (defmethod process-insn :return [ctx _]
   ctx)
 
-(defmethod process-insn ::const-insn [ctx {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/const-insn [ctx {:insn/keys [pool-element]}]
   (-> ctx
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
@@ -97,14 +37,14 @@
         (update :stack pop)
         (assoc :ast ast))))
 
-(defmethod process-insn ::load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
+(defmethod process-insn ::bc/load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
   (let [{:insn/keys [target-index]} local-variable-element]
     (if-let [[_ local] (find local-variable-table target-index)]
       (-> ctx
           (update :stack conj local))
       (throw (Exception. ":(")))))
 
-(defmethod process-insn ::store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element]}]
+(defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element]}]
   (let [{:insn/keys [target-index]} local-variable-element
         val (peek stack)]
     (-> ctx
@@ -117,7 +57,7 @@
     (-> ctx
         (update :stack pop-n argc))))
 
-(defmethod process-insn ::invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))
         [target & args] (peek-n stack argc)]
