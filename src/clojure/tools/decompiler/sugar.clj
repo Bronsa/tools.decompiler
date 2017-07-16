@@ -19,9 +19,6 @@
 (defmethod -ast->sugared-ast :vector [ast]
   ast)
 
-(defmethod -ast->sugared-ast :keyword [ast]
-  ast)
-
 (defmethod -ast->sugared-ast :array [ast]
   ast)
 
@@ -96,9 +93,9 @@
            (= 2 (count args))
            (every? (comp #{:const} :op) args))
 
-      {:op :keyword
-       :ns (:val (first args))
-       :name (:val (second args))}
+      {:op :const
+       :val (keyword (:val (first args)) (:val (second args)))}
+
 
       (and (= target "clojure.lang.RT")
            (= method "var")

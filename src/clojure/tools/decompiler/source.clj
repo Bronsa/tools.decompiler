@@ -31,9 +31,6 @@
   ;; wip meta, name
   `(~(mapv (comp symbol :name) args) ~(-ast->clj body)))
 
-(defmethod -ast->clj :keyword [{:keys [ns name]}]
-  (keyword ns name))
-
 (defmethod -ast->clj :static-field [{:keys [target field]}]
   (symbol target field))
 
