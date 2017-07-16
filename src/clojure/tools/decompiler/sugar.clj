@@ -71,7 +71,7 @@
      :else
      ast)))
 
-(defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method] :as ast}]
+(defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method arg-types] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
 
     (cond
@@ -99,11 +99,15 @@
            (.contains target "$"))
 
       (let [[ns fn-name] ((juxt namespace name) (-> target u/ungensym u/demunge))]
-       {:op :invoke
-        :fn {:op :var
-             :ns ns
-             :name fn-name}
-        :args args})
+        (let [args (cond-> args
+                     (= "clojure.lang.ISeq" (last arg-types))
+                     ;; variadic invoke, unroll
+                     (update (dec (count args)) (fn [arg] (-> arg :args first :!items deref first))))]
+          {:op :invoke
+           :fn {:op :var
+                :ns ns
+                :name fn-name}
+           :args args}))
 
       (and (= target "clojure.lang.Tuple")
            (= method "create"))
