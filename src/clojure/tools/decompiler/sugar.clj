@@ -14,6 +14,9 @@
 (defmethod -ast->sugared-ast :keyword [ast]
   ast)
 
+(defmethod -ast->sugared-ast :array [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :local [ast]
   ast)
 
@@ -100,11 +103,9 @@
 
       (and (= target "clojure.lang.RT")
            (= method "vector")
-           (= (-> args first :op) :invoke)
-           (= (-> args first :fn) {:op :var :ns "clojure.core" :name "object-array"})
-           (= (-> args first :args first :op :vector)))
+           (= (-> args first :op) :array))
       {:op :vector
-       :items (-> args first :args fisrt :items)}
+       :items (-> args first :items)}
 
       :else
       ast)))
