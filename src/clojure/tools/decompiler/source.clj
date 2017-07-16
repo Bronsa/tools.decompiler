@@ -10,7 +10,7 @@
 
 (defmethod -ast->clj :fn-method [{:keys [args body]}]
   ;; wip meta, name
-  `(~(mapv :name args) ~(-ast->clj body)))
+  `(~(mapv (comp symbol :name) args) ~(-ast->clj body)))
 
 (defn ast->clj [{:keys [ast]}]
   (-ast->clj ast))
