@@ -120,6 +120,13 @@
       new-ctx
       (recur new-ctx bc))))
 
+(defn merge-local-variable-table [ctx local-variable-table]
+  (update ctx :local-variable-table merge
+         (->> (for [[idx {:local-variable/keys [name]}] local-variable-table]
+                [idx {:op :local
+                      :name name}])
+              (into {}))))
+
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table]}]
   (let [ctx (-> ctx
                 (merge initial-local-ctx {:jump-table jump-table})
@@ -131,13 +138,6 @@
 (defn process-static-init [ctx {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<clinit>"})]
     (process-method-insns ctx method)))
-
-(defn merge-local-variable-table [ctx local-variable-table]
-  (update ctx :local-variable-table merge
-         (->> (for [[idx {:local-variable/keys [name]}] local-variable-table]
-                [idx {:op :local
-                      :name name}])
-              (into {}))))
 
 (defn process-init [ctx {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<init>"})]
