@@ -5,6 +5,9 @@
 (defmethod -ast->clj :const [{:keys [val]}]
   val)
 
+(defmethod -ast->clj :do [{:keys [statements ret]}]
+  `(do ~@(map -ast->clj statements) ~(-ast->clj ret)))
+
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
 

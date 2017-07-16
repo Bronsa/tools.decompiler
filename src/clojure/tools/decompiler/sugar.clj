@@ -8,6 +8,11 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :do [ast]
+  (-> ast
+      (update :statements #(mapv -ast->sugared-ast %))
+      (update :ret -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :set [ast]
   ast)
 
@@ -30,7 +35,9 @@
   ast)
 
 (defmethod -ast->sugared-ast :invoke [ast]
-  ast)
+  (-> ast
+      (update :args #(mapv -ast->sugared-ast %))
+      (update :fn -ast->sugared-ast)))
 
 (defmethod -ast->sugared-ast :fn [ast]
   (-> ast

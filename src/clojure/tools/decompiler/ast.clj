@@ -6,6 +6,7 @@
 ;; WIP casting, type hints
 
 (def initial-ctx {:fields {}
+                  :statements []
                   :ast {}})
 
 (def initial-local-ctx {:stack []
@@ -37,8 +38,10 @@
         (update :stack conj val))))
 
 (defmethod process-insn :pop [{:keys [stack] :as ctx} _]
-  (-> ctx
-      (update :stack pop)))
+  (let [statement (peek stack)]
+    (-> ctx
+        (update :statements conj statement)
+        (update :stack pop))))
 
 (defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
@@ -56,12 +59,13 @@
     (-> ctx
         (update :stack pop-n 3))))
 
-(defmethod process-insn :areturn [{:keys [stack] :as ctx} _]
-  ;; WIP stack contains statements + ret, this is only returning ret
-  (let [ast (peek stack)]
+(defmethod process-insn :areturn [{:keys [stack statements] :as ctx} _]
+  (let [ret (peek stack)]
     (-> ctx
-        (update :stack pop)
-        (assoc :ast ast))))
+        (assoc :stack [] :statements []
+               :ast {:op :do
+                     :ret ret
+                     :statements statements}))))
 
 (defmethod process-insn ::bc/load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
   (let [{:insn/keys [target-index]} local-variable-element]
