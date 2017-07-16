@@ -18,6 +18,32 @@
       (derive :invokeinterface ::invoke-instance-method)
       (derive :invokevirtual ::invoke-instance-method)
 
+      (derive :astore ::store-insn)
+      (derive :astore_0 ::store-insn)
+      (derive :astore_1 ::store-insn)
+      (derive :astore_2 ::store-insn)
+      (derive :astore_3 ::store-insn)
+      (derive :dstore ::store-insn)
+      (derive :dstore_0 ::store-insn)
+      (derive :dstore_1 ::store-insn)
+      (derive :dstore_2 ::store-insn)
+      (derive :dstore_3 ::store-insn)
+      (derive :fstore ::store-insn)
+      (derive :fstore_0 ::store-insn)
+      (derive :fstore_1 ::store-insn)
+      (derive :fstore_2 ::store-insn)
+      (derive :fstore_3 ::store-insn)
+      (derive :istore ::store-insn)
+      (derive :istore_0 ::store-insn)
+      (derive :istore_1 ::store-insn)
+      (derive :istore_2 ::store-insn)
+      (derive :istore_3 ::store-insn)
+      (derive :lstore ::store-insn)
+      (derive :lstore_0 ::store-insn)
+      (derive :lstore_1 ::store-insn)
+      (derive :lstore_2 ::store-insn)
+      (derive :lstore_3 ::store-insn)
+
       (derive :aload ::load-insn)
       (derive :aload_0 ::load-insn)
       (derive :aload_1 ::load-insn)
@@ -72,6 +98,12 @@
 (defmethod process-insn ::load-insn [{:keys [stack local-variable-table] :as ctx} _]
   (-> ctx
       (update :stack conj (get local-variable-table 0))))
+(defmethod process-insn ::store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element]}]
+  (let [{:insn/keys [target-index]} local-variable-element
+        val (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :local-variable-table assoc target-index val))))
 
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
