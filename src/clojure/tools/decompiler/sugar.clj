@@ -34,8 +34,20 @@
 (defmethod -ast->sugared-ast :the-var [ast]
   ast)
 
-(defmethod -ast->sugared-ast :static-field [ast]
-  ast)
+(defmethod -ast->sugared-ast :static-field [{:keys [target field] :as ast}]
+  (cond
+    (and (#{"clojure.lang.PersistentList" "clojure.lang.PersistentVector"
+            "clojure.lang.PersistentArrayMap" "clojure.lang.PersistentHashSet"} target)
+         (= "EMPTY" field))
+    {:op :const
+     :val (case target
+            "clojure.lang.PersistentList" ()
+            "clojure.lang.PersistentVector" []
+            "clojure.lang.PersistentArrayMap" {}
+            "clojure.lang.PersistentHashSet" #{})}
+
+    :else
+    ast))
 
 (defmethod -ast->sugared-ast :invoke [ast]
   (-> ast
