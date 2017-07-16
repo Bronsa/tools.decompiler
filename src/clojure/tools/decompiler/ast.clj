@@ -95,9 +95,13 @@
         (update :stack pop)
         (assoc :ast ast))))
 
-(defmethod process-insn ::load-insn [{:keys [stack local-variable-table] :as ctx} _]
-  (-> ctx
-      (update :stack conj (get local-variable-table 0))))
+(defmethod process-insn ::load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
+  (let [{:insn/keys [target-index]} local-variable-element]
+    (if-let [[_ local] (find local-variable-table target-index)]
+      (-> ctx
+          (update :stack conj local))
+      (throw (Exception. ":(")))))
+
 (defmethod process-insn ::store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element]}]
   (let [{:insn/keys [target-index]} local-variable-element
         val (peek stack)]
