@@ -18,8 +18,8 @@
 (defmethod -ast->clj :map [{:keys [items]}]
   (apply hash-map (map -ast->clj items)))
 
-(defmethod -ast->clj :array [{:keys [items]}]
-  (object-array (mapv -ast->clj items)))
+(defmethod -ast->clj :array [{:keys [!items]}]
+  (object-array (mapv -ast->clj @!items)))
 
 (defmethod -ast->clj :fn [{:keys [fn-methods]}]
   `(fn* ~@(map -ast->clj fn-methods)))

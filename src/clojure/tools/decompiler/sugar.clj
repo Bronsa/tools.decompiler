@@ -108,7 +108,7 @@
            (#{"vector" "set" "mapUniqueKeys"} method)
            (= (-> args first :op) :array))
       {:op ({"vector" :vector "set" :set "mapUniqueKeys" :map} method)
-       :items (-> args first :items)}
+       :items (-> args first :!items deref)}
 
       :else
       ast)))

@@ -40,17 +40,17 @@
   (let [{:insn/keys [target-type]} pool-element
         {dimension :val} (peek stack)
         expr {:op :array
-              :items (vec (repeat dimension {:op :const :val nil}))}]
+              :!items (atom (vec (repeat dimension {:op :const :val nil})))}]
 
     (-> ctx
         (update :stack pop)
         (update :stack conj expr))))
 
 (defmethod process-insn ::bc/array-store [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [[array {index :val} value] (peek-n stack 3)]
+  (let [[{:keys [!items] :as array} {index :val} value] (peek-n stack 3)]
+    (swap! !items assoc index value)
     (-> ctx
-        (update :stack pop-n 3)
-        (update :stack conj (assoc-in array [:items index] value)))))
+        (update :stack pop-n 3))))
 
 (defmethod process-insn :areturn [{:keys [stack] :as ctx} _]
   ;; WIP stack contains statements + ret, this is only returning ret
