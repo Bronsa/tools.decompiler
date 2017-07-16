@@ -43,6 +43,11 @@
             "clojure.lang.PersistentArrayMap" {}
             "clojure.lang.PersistentHashSet" #{})}
 
+    (and (= target "java.lang.Boolean")
+         (#{"TRUE" "FALSE"} field))
+    {:op :const
+     :val (case field "TRUE" true "FALSE" false)}
+
     :else
     ast))
 
@@ -96,6 +101,21 @@
       {:op :const
        :val (keyword (:val (first args)) (:val (second args)))}
 
+      (and (= target "clojure.lang.Symbol")
+           (= method "intern")
+           (= 2 (count args))
+           (every? (comp #{:const} :op) args))
+
+      {:op :const
+       :val (list 'quote (symbol (:val (first args)) (:val (second args))))}
+
+      (and (= method "valueOf")
+           (#{"java.lang.Long" "java.lang.Double"} target)
+           (= 1 (count args))
+           (-> args (first) :op (= :const)))
+
+      {:op :const
+       :val (-> args (first) :val)}
 
       (and (= target "clojure.lang.RT")
            (= method "var")
