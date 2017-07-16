@@ -37,14 +37,20 @@
         (update :stack pop)
         (assoc :ast ast))))
 
-;; (defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-;;   (let [{:insn/keys [target-class target-arg-types]} pool-element
-;;         args (stack/pop-n stack (count target-arg-types))]
+(defmethod process-insn "aload_0" [{:keys [stack local-variable-table] :as ctx} _]
+  (-> ctx
+      (update :stack conj (get local-variable-table 0))))
 
-;;     (assoc ctx
-;;            :stack (conj stack {:op :invoke-ctor
-;;                                :target target-class
-;;                                :args args}))))
+(defmethod process-insn "invokespecial" [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+
+  (let [{:insn/keys [target-class target-arg-types]} pool-element
+        ;; WIP check if target is first or last
+        [target & args] (stack/pop-n stack (count (conj target-arg-types target-class)))]
+    (-> ctx
+        (update :stack conj {:op :invoke-ctor
+                             :target-class target-class
+                             :target target
+                             :args args}))))
 
 (defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
   (let [insn-n (get jump-table pc)
@@ -70,12 +76,15 @@
   (let [method (u/find-method methods {:method/name "<clinit>"})]
     (process-method-insns ctx method)))
 
-(defn process-init [ctx {:class/keys [methods] :as bc}]
+(defn process-init [{:keys [fn-name] :as ctx} {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<init>"})]
-    (process-method-insns ctx method)))
+    (process-method-insns (assoc-in ctx [:local-variable-table 0] {:op :local :name fn-name})
+                          method)))
 
-(defn decompile-fn-method [ctx {:method/keys [return-type arg-types local-variable-table] :as method}]
-  (let [{:keys [ast]} (process-method-insns ctx method)]
+(defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [return-type arg-types local-variable-table flags]
+                                                      :as method}]
+  (let [ctx (cond-> ctx (not (:static flags)) (assoc-in [:local-variable-table 0] {:op :local :name fn-name}))
+        {:keys [ast]} (process-method-insns ctx method)]
     {:op :fn-method
      :args (for [i (range (count arg-types))
                  ;; WIP doesn't work if there's no local-variable-table
@@ -106,6 +115,7 @@
         ns (namespace class-name)
         fn-name (name class-name)
         ast (-> ctx
+                (assoc :fn-name name)
                 (process-static-init bc)
                 (process-init bc)
                 (decompile-fn-methods bc))]
