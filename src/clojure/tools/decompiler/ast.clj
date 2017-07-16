@@ -1,5 +1,5 @@
 (ns clojure.tools.decompiler.ast
-  (:require [clojure.tools.decompiler.stack :as stack]
+  (:require [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
             [clojure.tools.decompiler.utils :as u]))
 
 (def initial-ctx {:fields {}
@@ -74,7 +74,42 @@
   (let [{:insn/keys [target-class target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))]
     (-> ctx
-        (update :stack stack/pop-n argc))))
+        (update :stack pop-n argc))))
+
+(defmethod process-insn :putstatic [{:keys [stack class-name] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name]} pool-element
+        val (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        ;; WIP if not produce set!, logic will have to change for deftype as we can set! to this
+        (cond-> (= class-name target-class)
+          (update :fields assoc target-name val)))))
+
+(defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name]} pool-element]
+    (-> ctx
+        ;; WIP if not produce host-field, logic will have to change for deftype/defrecord as we can get from this
+        (cond-> (= target-class class-name)
+          (update :stack conj (get fields target-name))))))
+
+(defmethod process-insn :invokestatic [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name target-arg-types]} pool-element
+        argc (count target-arg-types)
+        args (peek-n stack argc)]
+    (-> ctx
+        (update :stack pop-n argc)
+        (update :stack conj {:op :invoke-static
+                             :target target-class
+                             :method target-name
+                             :arg-types target-arg-types
+                             :args args}))))
+
+(defmethod process-insn :checkcast [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-type]} pool-element
+        target (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj (assoc target :cast target-type)))))
 
 (defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
   (let [insn-n (get jump-table pc)
@@ -100,10 +135,14 @@
   (let [method (u/find-method methods {:method/name "<clinit>"})]
     (process-method-insns ctx method)))
 
+;; WIP push args, not just this
+
 (defn process-init [{:keys [fn-name] :as ctx} {:class/keys [methods] :as bc}]
   (let [method (u/find-method methods {:method/name "<init>"})]
     (process-method-insns (assoc-in ctx [:local-variable-table 0] {:op :local :name fn-name})
                           method)))
+
+;; WIP push args, not just this
 
 (defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [return-type arg-types local-variable-table flags]
                                                       :as method}]
@@ -135,11 +174,10 @@
 (defn decompile-fn [{class-name :class/name
                      :class/keys [methods] :as bc}
                     ctx]
-  (let [class-name (u/demunge class-name)
-        ns (namespace class-name)
-        fn-name (name class-name)
+  (let [[ns fn-name] ((juxt namespace name) (u/demunge class-name))
         ast (-> ctx
-                (assoc :fn-name name)
+                (assoc :fn-name fn-name)
+                (assoc :class-name class-name)
                 (process-static-init bc)
                 (process-init bc)
                 (decompile-fn-methods bc))]
