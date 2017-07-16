@@ -36,6 +36,31 @@
     (-> ctx
         (update :stack conj val))))
 
+(defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-type]} pool-element
+        ;; WIP: worth creating an array node instead? would break mapping, unless tagged literal for arrays
+        {dimension :val} (peek stack)
+        expr {:op :invoke
+              :fn {:op :var
+                   :ns "clojure.core"
+                   :name "into-array"}
+              :args [{:op :const
+                      ;; WIP handle primitives & arrays
+                      :val (symbol target-type)}
+                     {:op :vector
+                      :items (vec (repeat dimension {:op :const :val nil}))}]}]
+
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj expr))))
+
+(defmethod process-insn :aastore [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [[array {index :val} value] (peek-n stack 3)]
+    (-> ctx
+        (update :stack pop-n 3)
+        (update :stack conj (-> array
+                                (assoc-in [:args 1 :items index] value))))))
+
 (defmethod process-insn :areturn [{:keys [stack] :as ctx} _]
   ;; WIP stack contains statements + ret, this is only returning ret
   (let [ast (peek stack)]
