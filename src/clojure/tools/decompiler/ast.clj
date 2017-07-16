@@ -111,10 +111,12 @@
 
 (defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element]
-    (-> ctx
-        ;; WIP if not produce host-field, logic will have to change for deftype/defrecord as we can get from this
-        (cond-> (= target-class class-name)
-          (update :stack conj (get fields target-name))))))
+    ;; WIP logic will have to change for deftype/defrecord as we can get from this
+    (if (= target-class class-name)
+      (update ctx :stack conj (get fields target-name))
+      (update ctx :stack conj {:op :static-field
+                               :target target-class
+                               :field target-name}))))
 
 (defmethod process-insn :invokestatic [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-arg-types]} pool-element

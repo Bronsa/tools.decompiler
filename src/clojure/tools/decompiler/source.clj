@@ -34,6 +34,9 @@
 (defmethod -ast->clj :keyword [{:keys [ns name]}]
   (keyword ns name))
 
+(defmethod -ast->clj :static-field [{:keys [target field]}]
+  (symbol target field))
+
 (defmethod -ast->clj :invoke-static [{:keys [target method args]}]
   `(~(symbol target method) ~@(map -ast->clj args)))
 

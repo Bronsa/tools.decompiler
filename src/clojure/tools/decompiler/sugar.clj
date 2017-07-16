@@ -34,6 +34,9 @@
 (defmethod -ast->sugared-ast :the-var [ast]
   ast)
 
+(defmethod -ast->sugared-ast :static-field [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :invoke [ast]
   (-> ast
       (update :args #(mapv -ast->sugared-ast %))
