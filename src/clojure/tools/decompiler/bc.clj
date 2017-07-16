@@ -3,7 +3,7 @@
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility LocalVariable)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
-                                    ConstantPoolGen LocalVariableInstruction TypedInstruction NEWARRAY Select)))
+                                    ConstantPoolGen LocalVariableInstruction TypedInstruction IndexedInstruction NEWARRAY Select)))
 
 ;; Implementaiton is limited to the set of bytecode produced by Clojure compiler as of version 1.9.0
 
@@ -71,13 +71,16 @@
 
 (defmethod -parse-insn ConstantPushInstruction
   [^JavaClass klass ^ConstantPushInstruction insn]
-  {:insn/constant-element {:insn/target-value (.getValue insn)
-                           :insn/target-type (type-from-pool-gen klass insn)}})
+  {:insn/pool-element {:insn/target-value (.getValue insn)
+                       :insn/target-type (type-from-pool-gen klass insn)}})
 
-(defn parse-pool-element [^ConstantPool pool idx]
-  (let [constant (.getConstant pool idx)]
+(defn parse-pool-element [^JavaClass klass ^IndexedInstruction insn]
+  (let [idx (.getIndex insn)
+        pool (.getConstantPool klass)
+        constant (.getConstant pool idx)]
     (if (instance? ConstantObject constant)
-      {:insn/target-value (.getConstantValue ^ConstantObject constant pool)}
+      {:insn/target-value (.getConstantValue ^ConstantObject constant pool)
+       :insn/target-type (type-from-pool-gen klass insn)}
       ;; methods + field refs
       (let [^ConstantCP constant constant
             ^ConstantNameAndType name-and-type (.getConstant pool (.getNameAndTypeIndex constant))
@@ -92,8 +95,8 @@
 
 (defmethod -parse-insn CPInstruction
   [^JavaClass klass ^CPInstruction insn]
-  (let [pool (.getConstantPool klass)]
-    {:insn/pool-element (parse-pool-element pool (.getIndex insn))}))
+  {:insn/pool-element (parse-pool-element klass insn)
+   :insn/_type :cp-instruction})
 
 (defn parse-insn [^JavaClass klass ^Instruction insn]
   (merge
