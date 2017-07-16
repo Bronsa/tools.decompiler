@@ -95,8 +95,7 @@
 
 (defmethod -parse-insn CPInstruction
   [^JavaClass klass ^CPInstruction insn]
-  {:insn/pool-element (parse-pool-element klass insn)
-   :insn/_type :cp-instruction})
+  {:insn/pool-element (parse-pool-element klass insn)})
 
 (defn parse-insn [^JavaClass klass ^Instruction insn]
   (merge
