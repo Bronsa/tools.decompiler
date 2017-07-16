@@ -12,6 +12,9 @@
   ;; wip meta, name
   `(~(mapv (comp symbol :name) args) ~(-ast->clj body)))
 
+(defmethod -ast->clj :invoke-static [{:keys [target method args]}]
+  `(~(symbol target method) ~@(map -ast->clj args)))
+
 (defn ast->clj [{:keys [ast]}]
   (-ast->clj ast))
 
