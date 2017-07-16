@@ -14,6 +14,10 @@
 (defmethod -ast->clj :set [{:keys [items]}]
   (into #{} (map -ast->clj) items))
 
+;; wip hash or array map
+(defmethod -ast->clj :map [{:keys [items]}]
+  (apply hash-map (map -ast->clj items)))
+
 (defmethod -ast->clj :array [{:keys [items]}]
   (object-array (mapv -ast->clj items)))
 
