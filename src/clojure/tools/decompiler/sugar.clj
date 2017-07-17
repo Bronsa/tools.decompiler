@@ -1,5 +1,6 @@
 (ns clojure.tools.decompiler.sugar
-  (:require [clojure.tools.decompiler.utils :as u]))
+  (:require [clojure.tools.decompiler.utils :as u]
+            [clojure.edn :as e]))
 
 ;; WIP this could use a postwalk
 
@@ -118,6 +119,15 @@
 
       {:op :const
        :val (keyword (:val (first args)) (:val (second args)))}
+
+      (and (= target "clojure.lang.RT")
+           (= method "readString")
+           (= 1 (count args))
+           (string? (-> args first :val))
+           ((some-fn integer? bigdec?) (try (e/read-string (-> args first :val)) (catch Exception _))))
+
+      {:op :const
+       :val (e/read-string (-> args first :val))}
 
       ;; WIP: this is too aggressive
       (and (= target "clojure.lang.RT")
