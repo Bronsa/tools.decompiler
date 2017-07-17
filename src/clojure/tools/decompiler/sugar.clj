@@ -8,6 +8,12 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :monitor-enter [ast]
+  ast)
+
+(defmethod -ast->sugared-ast :monitor-exit [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :do [ast]
   (let [{:keys [statements ret] :as ast} (-> ast
                                              (update :statements #(mapv -ast->sugared-ast %))

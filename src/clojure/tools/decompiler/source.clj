@@ -5,6 +5,12 @@
 (defmethod -ast->clj :const [{:keys [val]}]
   val)
 
+(defmethod -ast->clj :monitor-enter [{:keys [sentinel]}]
+  `(monitor-enter ~(-ast->clj sentinel)))
+
+(defmethod -ast->clj :monitor-exit [{:keys [sentinel]}]
+  `(monitor-exit ~(-ast->clj sentinel)))
+
 (defmethod -ast->clj :do [{:keys [statements ret]}]
   `(do ~@(map -ast->clj statements) ~(-ast->clj ret)))
 

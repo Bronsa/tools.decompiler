@@ -75,6 +75,20 @@
     (-> ctx
         (update :stack pop-n 3))))
 
+(defmethod process-insn :monitorenter [{:keys [stack] :as ctx} _]
+  (let [sentinel (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj {:op :monitor-enter
+                             :sentinel sentinel}))))
+
+(defmethod process-insn :monitorexit [{:keys [stack] :as ctx} _]
+  (let [sentinel (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj {:op :monitor-exit
+                             :sentinel sentinel}))))
+
 (defmethod process-insn :areturn [{:keys [stack statements] :as ctx} _]
   (let [ret (peek stack)]
     (-> ctx
