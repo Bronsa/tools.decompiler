@@ -134,10 +134,11 @@
            (.contains target "$"))
 
       (let [[ns fn-name] ((juxt namespace name) (-> target u/ungensym u/demunge))]
-        (let [args (cond-> args
-                     (= "clojure.lang.ISeq" (last arg-types))
-                     ;; variadic invoke, unroll
-                     (update (dec (count args)) (fn [arg] (-> arg :args first :!items deref first))))]
+        (let [args (if (= "clojure.lang.ISeq" (last arg-types))
+                     ;; variadic invoke, unroll last arg
+                     (let [[args varargs] ((juxt butlast last) args)]
+                       (into (vec args) (->> varargs :args first :!items deref (mapv -ast->sugared-ast))))
+                     args)]
           {:op :invoke
            :fn {:op :var
                 :ns ns
