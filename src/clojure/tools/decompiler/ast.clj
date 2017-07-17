@@ -165,6 +165,36 @@
                       :then then
                       :else else}))))
 
+(defmethod process-insn ::bc/number-compare [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label]}]
+  (let [insn (nth insns (-> (get jump-table label) (+ 1)))
+
+        op (case (:insn/name insn)
+             "ifle" ">"
+             "ifge" "<"
+             "ifne" "="
+             "iflt" ">="
+             "ifgt" "<=")
+
+        else-label (goto-label insn)
+
+        goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
+        end-label (goto-label goto-end-insn)
+
+        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 2)))
+
+        [a b] (peek-n stack 2)
+
+        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+
+    (-> ctx
+        (update :stack pop-n 2)
+        (assoc :pc end-label)
+        (update (if statement? :statements :stack)
+                conj {:op :if
+                      :test {:op :invoke :fn {:op :var :ns "clojure.core" :name op} :args [a b]}
+                      :then then
+                      :else else}))))
+
 (defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
   (let [jump-label (goto-label insn)

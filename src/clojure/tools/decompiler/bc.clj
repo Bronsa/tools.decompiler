@@ -251,7 +251,11 @@
       (derive :fastore ::array-store)
       (derive :iastore ::array-store)
       (derive :lastore ::array-store)
-      (derive :sastore ::array-store)))
+      (derive :sastore ::array-store)
+
+      (derive :dcmpg ::number-compare)
+      (derive :lcmp ::number-compare)
+      (derive :dcmpl ::number-compare)))
 
 (comment
   (require '[clojure.java.io :as io])
