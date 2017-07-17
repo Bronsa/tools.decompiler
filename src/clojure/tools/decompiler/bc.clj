@@ -65,9 +65,9 @@
   [_ ^BranchInstruction insn]
   (if (instance? Select insn)
     (let [^Select insn insn]
-      {:insn/jump-targets {:insn/jump-targets (vec (.getIndices insn))
+      {:insn/jump-targets {:insn/jump-offsets (vec (.getIndices insn))
                            :insn/jump-matches (vec (.getMatchs insn))}})
-    {:insn/jump-target (.getIndex insn)}))
+    {:insn/jump-offset (.getIndex insn)}))
 
 (defmethod -parse-insn ConstantPushInstruction
   [^JavaClass klass ^ConstantPushInstruction insn]

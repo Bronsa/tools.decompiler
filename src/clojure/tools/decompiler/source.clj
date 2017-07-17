@@ -11,6 +11,9 @@
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
 
+(defmethod -ast->clj :recur [{:keys [args]}]
+  `(recur ~@(map -ast->clj args)))
+
 (defmethod -ast->clj :vector [{:keys [items]}]
   (mapv -ast->clj items))
 

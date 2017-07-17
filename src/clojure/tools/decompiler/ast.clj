@@ -67,6 +67,16 @@
                      :ret ret
                      :statements statements}))))
 
+(defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} {:insn/keys [jump-offset label] :as insn}]
+  ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
+  (let [jump-label (+ label jump-offset)
+        locals (sort (map key (filter #(-> % val :start-index (= jump-label)) local-variable-table)))
+        args (mapv local-variable-table locals)]
+    ;; WIP conditionals
+    (-> ctx
+        (update :stack conj {:op :recur
+                             :args args}))))
+
 (defmethod process-insn ::bc/load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
   (let [{:insn/keys [target-index]} local-variable-element]
     (if-let [[_ local] (find local-variable-table target-index)]
@@ -154,8 +164,9 @@
 
 (defn merge-local-variable-table [ctx local-variable-table]
   (update ctx :local-variable-table merge
-         (->> (for [[idx {:local-variable/keys [name]}] local-variable-table]
+         (->> (for [[idx {:local-variable/keys [name start-index]}] local-variable-table]
                 [idx {:op :local
+                      :start-index start-index
                       :name name}])
               (into {}))))
 

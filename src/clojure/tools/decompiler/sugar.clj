@@ -16,6 +16,9 @@
 (defmethod -ast->sugared-ast :set [ast]
   ast)
 
+(defmethod -ast->sugared-ast :recur [ast]
+  ast)
+
 (defmethod -ast->sugared-ast :vector [ast]
   ast)
 
