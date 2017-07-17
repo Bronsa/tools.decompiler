@@ -25,21 +25,20 @@
   ctx)
 
 (defn process-insns [{:keys [stack pc jump-table terminate-at] :as ctx} bc]
-  (loop [{:keys [stack pc jump-table terminate-at] :as ctx} ctx bc bc]
-   (let [insn-n (get jump-table pc)
-         {:insn/keys [length] :as insn} (nth bc insn-n)
-         {:keys [pc] :as new-ctx} (-> (process-insn ctx insn)
-                                      (update :pc (fn [new-pc]
-                                                    (if (= new-pc pc)
-                                                      ;; last insn wasn't an explicit jump, goto next insn
-                                                      (+ new-pc length)
-                                                      new-pc))))]
-     (if (or (not (get jump-table pc))
-             (= pc terminate-at))
-       ;; pc is out of bounds, or explicit return from the block, we're done
-       ;; TODO: do we need to pop the stack?
-       new-ctx
-       (recur new-ctx bc)))))
+  (let [insn-n (get jump-table pc)
+        {:insn/keys [length] :as insn} (nth bc insn-n)
+        {:keys [pc] :as new-ctx} (-> (process-insn ctx insn)
+                                     (update :pc (fn [new-pc]
+                                                   (if (= new-pc pc)
+                                                     ;; last insn wasn't an explicit jump, goto next insn
+                                                     (+ new-pc length)
+                                                     new-pc))))]
+    (if (or (not (get jump-table pc))
+            (= pc terminate-at))
+      ;; pc is out of bounds, or explicit return from the block, we're done
+      ;; TODO: do we need to pop the stack?
+      new-ctx
+      (recur new-ctx bc))))
 
 (defmethod process-insn :return [ctx _]
   ctx)
@@ -85,15 +84,22 @@
                      :statements statements}))))
 
 (defn process-if [{:keys [insns jump-table] :as ctx} [start-then end-then] [start-else end-else]]
-  (let [{then-stack :stack then-st :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then) insns)
-        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else) insns)
+  (let [{then-stack :stack then-st :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
+        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statemtns []) insns)
 
         statement? (->> end-else (get jump-table) (dec) (nth insns) :insn/name #{"pop" "pop2"})
-        [then else] (if statement?
-                      [(last then-st) (last else-st)]
-                      [(peek then-stack) (peek else-stack)])]
 
-    [then else statement?]))
+        [then then-st else else-st] (if statement?
+                                      [(last then-st) (butlast then-st)
+                                       (last else-st) (butlast else-st)]
+                                      [(peek then-stack) then-st
+                                       (peek else-stack) else-st])]
+
+    {:then then
+     :then-st then-st
+     :else else
+     :else-st else-st
+     :statement? statement?}))
 
 (defn goto-label [{:insn/keys [jump-offset label] :as insn}]
   (+ jump-offset label))
@@ -126,7 +132,7 @@
 
         [test _] (peek-n stack 2)
 
-        [then else statement?] (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+        {:keys [then then-st else else-st statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
 
     (-> ctx
         (update :stack pop-n 2)
@@ -134,8 +140,12 @@
         (update (if statement? :statements :stack)
                 conj {:op :if
                       :test test
-                      :then then
-                      :else else}))))
+                      :then {:op :do
+                             :statements then-st
+                             :ret then}
+                      :else {:op :do
+                             :statements else-st
+                             :ret else}}))))
 
 (defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
