@@ -24,6 +24,23 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
+(defn process-insns [{:keys [stack pc jump-table terminate-at] :as ctx} bc]
+  (loop [{:keys [stack pc jump-table terminate-at] :as ctx} ctx bc bc]
+   (let [insn-n (get jump-table pc)
+         {:insn/keys [length] :as insn} (nth bc insn-n)
+         {:keys [pc] :as new-ctx} (-> (process-insn ctx insn)
+                                      (update :pc (fn [new-pc]
+                                                    (if (= new-pc pc)
+                                                      ;; last insn wasn't an explicit jump, goto next insn
+                                                      (+ new-pc length)
+                                                      new-pc))))]
+     (if (or (not (get jump-table pc))
+             (= pc terminate-at))
+       ;; pc is out of bounds, or explicit return from the block, we're done
+       ;; TODO: do we need to pop the stack?
+       new-ctx
+       (recur new-ctx bc)))))
+
 (defmethod process-insn :return [ctx _]
   ctx)
 
@@ -67,9 +84,62 @@
                      :ret ret
                      :statements statements}))))
 
-(defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} {:insn/keys [jump-offset label] :as insn}]
+(defn process-if [{:keys [insns jump-table] :as ctx} [start-then end-then] [start-else end-else]]
+  (let [{then-stack :stack then-st :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then) insns)
+        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else) insns)
+
+        statement? (->> end-else (get jump-table) (dec) (nth insns) :insn/name #{"pop" "pop2"})
+        [then else] (if statement?
+                      [(last then-st) (last else-st)]
+                      [(peek then-stack) (peek else-stack)])]
+
+    [then else statement?]))
+
+(defn goto-label [{:insn/keys [jump-offset label] :as insn}]
+  (+ jump-offset label))
+
+;;   >>>test
+;;   dup
+;;   ifnull -> null-label
+;;   false
+;;   ifeq -> else-label
+;; then-label:
+;;   >>>then
+;;   goto -> end-label
+;; null-label:
+;;   pop
+;; else-label:
+;;   >>>else
+;; end-label:
+
+(defmethod process-insn :ifnull [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+  (let [null-label (goto-label insn)
+
+        goto-end-insn  (nth insns (-> (get jump-table null-label) (- 1)))
+        end-label (goto-label goto-end-insn)
+
+        goto-else-insn (nth insns (-> (get jump-table label) (+ 2)))
+        else-label (goto-label goto-else-insn)
+
+        then-insn (nth insns (-> (get jump-table label) (+ 3)))
+        then-label (:insn/label then-insn)
+
+        [test _] (peek-n stack 2)
+
+        [then else statement?] (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+
+    (-> ctx
+        (update :stack pop-n 2)
+        (assoc :pc end-label)
+        (update (if statement? :statements :stack)
+                conj {:op :if
+                      :test test
+                      :then then
+                      :else else}))))
+
+(defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
-  (let [jump-label (+ label jump-offset)
+  (let [jump-label (goto-label insn)
         locals (sort (map key (filter #(-> % val :start-index (= jump-label)) local-variable-table)))
         args (mapv local-variable-table locals)]
     ;; WIP conditionals
@@ -147,22 +217,6 @@
         (update :stack pop)
         (update :stack conj (assoc target :cast target-type)))))
 
-(defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
-  (let [insn-n (get jump-table pc)
-        {:insn/keys [length] :as insn} (nth bc insn-n)
-        {:keys [interrupt?] :as new-ctx} (-> (process-insn ctx insn)
-                                             (update :pc (fn [new-pc]
-                                                           (if (= new-pc pc)
-                                                             ;; last insn wasn't an explicit jump, goto next insn
-                                                             (+ new-pc length)
-                                                             new-pc))))]
-    (if (or (not (get jump-table (:pc new-ctx)))
-            (:interrupt? new-ctx))
-      ;; pc is out of bounds, or explicit return from the block, we're done
-      ;; TODO: do we need to pop the stack?
-      new-ctx
-      (recur new-ctx bc))))
-
 (defn merge-local-variable-table [ctx local-variable-table]
   (update ctx :local-variable-table merge
          (->> (for [[idx {:local-variable/keys [name start-index]}] local-variable-table]
@@ -176,6 +230,7 @@
                 (merge initial-local-ctx {:jump-table jump-table})
                 (assoc-in [:local-variable-table 0] {:op :local :name fn-name})
                 (merge-local-variable-table local-variable-table)
+                (assoc :insns bytecode)
                 (process-insns bytecode))]
     (apply dissoc ctx :jump-table (keys initial-local-ctx))))
 

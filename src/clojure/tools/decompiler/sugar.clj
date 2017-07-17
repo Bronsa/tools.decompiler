@@ -13,6 +13,12 @@
       (update :statements #(mapv -ast->sugared-ast %))
       (update :ret -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :if [ast]
+  (-> ast
+      (update :test -ast->sugared-ast)
+      (update :then -ast->sugared-ast)
+      (update :else -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :set [ast]
   ast)
 

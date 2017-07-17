@@ -8,6 +8,9 @@
 (defmethod -ast->clj :do [{:keys [statements ret]}]
   `(do ~@(map -ast->clj statements) ~(-ast->clj ret)))
 
+(defmethod -ast->clj :if [{:keys [test then else]}]
+  `(if ~@(map -ast->clj [test then else])))
+
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
 
