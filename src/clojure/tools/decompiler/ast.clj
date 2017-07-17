@@ -26,19 +26,18 @@
   ctx)
 
 (defn process-insns [{:keys [stack pc jump-table terminate-at] :as ctx} bc]
-  (let [insn-n (get jump-table pc)
-        {:insn/keys [length] :as insn} (nth bc insn-n)
-        {:keys [pc] :as new-ctx} (-> (process-insn ctx insn)
-                                     (update :pc (fn [new-pc]
-                                                   (if (= new-pc pc)
-                                                     ;; last insn wasn't an explicit jump, goto next insn
-                                                     (+ new-pc length)
-                                                     new-pc))))]
-    (if (or (not (get jump-table pc))
-            (= pc terminate-at))
-      ;; pc is out of bounds, or explicit return from the block, we're done
-      new-ctx
-      (recur new-ctx bc))))
+  (if (or (not (get jump-table pc))
+          (= pc terminate-at))
+    ctx
+    (let [insn-n (get jump-table pc)
+          {:insn/keys [length] :as insn} (nth bc insn-n)]
+      (-> (process-insn ctx insn)
+          (update :pc (fn [new-pc]
+                        (if (= new-pc pc)
+                          ;; last insn wasn't an explicit jump, goto next insn
+                          (+ new-pc length)
+                          new-pc)))
+          (recur bc)))))
 
 (defmethod process-insn :return [ctx _]
   ctx)
@@ -100,7 +99,7 @@
 (defn ->do [exprs]
   {:op :do
    :statements (vec (butlast exprs))
-   :ret (last exprs)})
+   :ret (or (last exprs) {:op :const :val nil})})
 
 (defn process-if [{:keys [insns jump-table stack] :as ctx} [start-then end-then] [start-else end-else]]
   (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
@@ -123,7 +122,7 @@
 (defmethod process-insn :ifnull [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [null-label (goto-label insn)
 
-        goto-end-insn  (nth insns (-> (get jump-table null-label) (- 1)))
+        goto-end-insn (nth insns (-> (get jump-table null-label) (- 1)))
         end-label (goto-label goto-end-insn)
 
         goto-else-insn (nth insns (-> (get jump-table label) (+ 2)))
@@ -147,7 +146,7 @@
 (defmethod process-insn :ifeq [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [else-label (goto-label insn)
 
-        goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
+        goto-end-insn (nth insns (-> (get jump-table else-label) (- 2)))
         end-label (goto-label goto-end-insn)
 
         {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 1)))
@@ -179,7 +178,7 @@
 
         else-label (goto-label insn)
 
-        goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
+        goto-end-insn (nth insns (-> (get jump-table else-label) (- 2)))
         end-label (goto-label goto-end-insn)
 
         {then-label :insn/label} (nth insns (-> (get jump-table label) (+ offset 1)))
