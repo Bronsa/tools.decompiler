@@ -150,14 +150,15 @@
 (defn process-insns [{:keys [stack pc jump-table] :as ctx} bc]
   (let [insn-n (get jump-table pc)
         {:insn/keys [length] :as insn} (nth bc insn-n)
-        new-ctx (-> (process-insn ctx insn)
-                    (update :pc (fn [new-pc]
-                                  (if (= new-pc pc)
-                                    ;; last insn wasn't an explicit jump, goto next insn
-                                    (+ new-pc length)
-                                    new-pc))))]
-    (if-not (get jump-table (:pc new-ctx))
-      ;; pc is out of bounds, we're done
+        {:keys [interrupt?] :as new-ctx} (-> (process-insn ctx insn)
+                                             (update :pc (fn [new-pc]
+                                                           (if (= new-pc pc)
+                                                             ;; last insn wasn't an explicit jump, goto next insn
+                                                             (+ new-pc length)
+                                                             new-pc))))]
+    (if (or (not (get jump-table (:pc new-ctx)))
+            (:interrupt? new-ctx))
+      ;; pc is out of bounds, or explicit return from the block, we're done
       ;; TODO: do we need to pop the stack?
       new-ctx
       (recur new-ctx bc))))
