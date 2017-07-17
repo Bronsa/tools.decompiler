@@ -85,7 +85,7 @@
 
 (defn process-if [{:keys [insns jump-table] :as ctx} [start-then end-then] [start-else end-else]]
   (let [{then-stack :stack then-st :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
-        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statemtns []) insns)
+        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statements []) insns)
 
         statement? (->> end-else (get jump-table) (dec) (nth insns) :insn/name #{"pop" "pop2"})
 
