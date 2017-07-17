@@ -113,6 +113,16 @@
       {:op :const
        :val (keyword (:val (first args)) (:val (second args)))}
 
+      ;; WIP: this is too aggressive
+      (and (= target "clojure.lang.RT")
+           (#{"doubleCast" "intCast" "box" "charCast" "booleanCast" "byteCast"
+              "shortCast" "longCast" "floatCast" "uncheckedDoubleCast"
+              "uncheckedIntCast" "uncheckedCharCast" "uncheckedByteCast"
+              "uncheckedShortCast" "uncheckedLongCast" "uncheckedFloatCast"} method)
+           (= 1 (count args)))
+
+      (first args)
+
       (and (= target "clojure.lang.Symbol")
            (= method "intern")
            (= 2 (count args))
