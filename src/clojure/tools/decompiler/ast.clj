@@ -83,25 +83,27 @@
                      :ret ret
                      :statements statements}))))
 
-(defn process-if [{:keys [insns jump-table] :as ctx} [start-then end-then] [start-else end-else]]
-  (let [{then-stack :stack then-st :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
-        {else-stack :stack else-st :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statements []) insns)
+(defn ->do [exprs]
+  {:op :do
+   :statements (vec (butlast exprs))
+   :ret (last exprs)})
 
-        statement? (->> end-else (get jump-table) (dec) (nth insns) :insn/name #{"pop" "pop2"})
+(defn process-if [{:keys [insns jump-table stack] :as ctx} [start-then end-then] [start-else end-else]]
+  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
+        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statements []) insns)
 
-        [then then-st else else-st] (if statement?
-                                      [(last then-st) (butlast then-st)
-                                       (last else-st) (butlast else-st)]
-                                      [(peek then-stack) then-st
-                                       (peek else-stack) else-st])]
+        statement? (= stack then-stack else-stack)
 
-    {:then then
-     :then-st then-st
-     :else else
-     :else-st else-st
+        [then else] (if statement?
+                      [then-stmnts else-stmnts]
+                      [(conj then-stmnts (peek then-stack))
+                       (conj else-stmnts (peek else-stack))])]
+
+    {:then (->do then)
+     :else (->do else)
      :statement? statement?}))
 
-(defn goto-label [{:insn/keys [jump-offset label] :as insn}]
+(defn goto-label [{:insn/keys [jump-offset label]}]
   (+ jump-offset label))
 
 ;;   >>>test
@@ -127,12 +129,11 @@
         goto-else-insn (nth insns (-> (get jump-table label) (+ 2)))
         else-label (goto-label goto-else-insn)
 
-        then-insn (nth insns (-> (get jump-table label) (+ 3)))
-        then-label (:insn/label then-insn)
+        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 3)))
 
         [test _] (peek-n stack 2)
 
-        {:keys [then then-st else else-st statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
 
     (-> ctx
         (update :stack pop-n 2)
@@ -140,12 +141,8 @@
         (update (if statement? :statements :stack)
                 conj {:op :if
                       :test test
-                      :then {:op :do
-                             :statements then-st
-                             :ret then}
-                      :else {:op :do
-                             :statements else-st
-                             :ret else}}))))
+                      :then then
+                      :else else}))))
 
 (defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
