@@ -9,9 +9,12 @@
   ast)
 
 (defmethod -ast->sugared-ast :do [ast]
-  (-> ast
-      (update :statements #(mapv -ast->sugared-ast %))
-      (update :ret -ast->sugared-ast)))
+  (let [{:keys [statements ret] :as ast} (-> ast
+                                             (update :statements #(mapv -ast->sugared-ast %))
+                                             (update :ret -ast->sugared-ast))]
+    (if (empty? statements)
+      ret
+      ast)))
 
 (defmethod -ast->sugared-ast :if [ast]
   (-> ast
