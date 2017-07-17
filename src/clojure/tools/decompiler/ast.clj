@@ -52,11 +52,6 @@
     (-> ctx
         (update :stack conj val))))
 
-(defmethod process-insn :pop [{:keys [stack] :as ctx} _]
-  (let [statement (peek stack)]
-    (-> ctx
-        (update :statements conj statement)
-        (update :stack pop))))
 
 (defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
@@ -209,7 +204,7 @@
 (defn find-local-variable [{:keys [local-variable-table]} index label]
   (->> local-variable-table
        (filter (comp #{index} :index))
-       (filter (comp (partial >= (inc label)) :start-label))
+       (filter (comp (partial >= label) :start-label))
        (filter (comp (partial < label) :end-label))
        (sort-by :start-label)
        (first)))
@@ -221,29 +216,52 @@
           (update :stack conj local))
       (throw (Exception. ":(")))))
 
+(defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
+  (= (+ label length) start-label))
+
+;; WIP loop/letfn
+(defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [end-label] :as local-variable} init]
+  (let [{:insn/keys [length]} (nth insns (get jump-table pc))
+        {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
+                                                                       (update :pc + length)
+                                                                       (assoc :terminate-at end-label)
+                                                                       (assoc :statements []))
+                                                                   insns)
+        statement? (= stack body-stack)
+        body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
+    (-> ctx
+        (assoc :pc end-label)
+        (update (if statement? :statements :stack)
+                conj {:op :let
+                      :local-variable {:op :local-variable
+                                       :local-variable local-variable
+                                       :init init}
+                      :body body}))))
+
+(defn find-init-local [{:keys [local-variable-table]} label]
+  (->> local-variable-table
+       (filter (comp (partial = label) :start-label))
+       (filter (comp (partial < label) :end-label))
+       (sort-by :start-label)
+       (first)))
+
+(defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
+  (let [statement (peek stack)
+        ctx (-> ctx (update :stack pop))]
+    (if-let [local-variable (find-init-local ctx (+ label length))]
+      (process-lexical-block ctx local-variable statement)
+      (-> ctx
+          (update :statements conj statement)))))
+
 (defmethod process-insn ::bc/store-insn [{:keys [stack insns jump-table] :as ctx}
-                                         {:insn/keys [local-variable-element label length]}]
+                                         {:insn/keys [local-variable-element label length] :as insn}]
   (let [{:insn/keys [target-index]} local-variable-element
-        {:keys [start-label end-label] :as local-variable} (find-local-variable ctx target-index label)
+        {:keys [start-label end-label] :as local-variable} (find-local-variable ctx target-index (+ label length))
         init (peek stack)
-        {:keys [stack] :as ctx} (-> ctx (update :stack pop))]
-    (if (= (inc label) start-label)
+        ctx (-> ctx (update :stack pop))]
+    (if (init-local-variable? insn local-variable)
       ;; initialize let context
-      (let [{body-stack :stack body-stmnts :statements} (process-insns (-> ctx
-                                                                           (update :pc + length)
-                                                                           (assoc :terminate-at end-label)
-                                                                           (assoc :statements []))
-                                                                       insns)
-            statement? (= stack body-stack)
-            body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
-        (-> ctx
-            (assoc :pc end-label)
-            (update (if statement? :statements :stack)
-                    conj {:op :let
-                          :local-variable {:op :local-variable
-                                           :local-variable local-variable
-                                           :init init}
-                          :body body})))
+      (process-lexical-block ctx local-variable init)
       ctx)))
 
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
