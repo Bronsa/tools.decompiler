@@ -275,6 +275,7 @@
     (if (init-local-variable? insn local-variable)
       ;; initialize let context
       (process-lexical-block ctx local-variable init)
+      ;; WIP must assoc val for recur
       ctx)))
 
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
