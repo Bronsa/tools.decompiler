@@ -278,16 +278,17 @@
 
 (defn merge-local-variable-table [ctx local-variable-table]
   (update ctx :local-variable-table merge
-         (->> (for [[idx {:local-variable/keys [name start-index]}] local-variable-table]
+         (->> (for [[idx {:local-variable/keys [name start-index end-index]}] local-variable-table]
                 [idx {:op :local
                       :start-index start-index
+                      :end-index end-index
                       :name name}])
               (into {}))))
 
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table]}]
   (let [ctx (-> ctx
                 (merge initial-local-ctx {:jump-table jump-table})
-                (assoc-in [:local-variable-table 0] {:op :local :name fn-name})
+                (assoc-in [:local-variable-table 0] {:op :local :name fn-name :start-index 0 :end-index (-> bytecode last :insn/label)})
                 (merge-local-variable-table local-variable-table)
                 (assoc :insns bytecode)
                 (process-insns bytecode))]

@@ -124,6 +124,8 @@
      [(.getIndex local-variable)
       {:local-variable/name (.getName local-variable)
        :local-variable/start-index (.getStartPC local-variable)
+       :local-variable/end-index (+ (.getStartPC local-variable)
+                                    (.getLength local-variable))
        :local-variable/type (Utility/signatureToString (.getSignature local-variable) false)}])
    (into {})))
 
