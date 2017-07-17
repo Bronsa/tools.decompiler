@@ -119,15 +119,13 @@
        (reduce add-labels [])))
 
 (defn parse-local-variable-table [local-variable-table]
-  (->>
-   (for [^LocalVariable local-variable local-variable-table]
-     [(.getIndex local-variable)
-      {:local-variable/name (.getName local-variable)
-       :local-variable/start-index (.getStartPC local-variable)
-       :local-variable/end-index (+ (.getStartPC local-variable)
-                                    (.getLength local-variable))
-       :local-variable/type (Utility/signatureToString (.getSignature local-variable) false)}])
-   (into {})))
+  (for [^LocalVariable local-variable local-variable-table]
+    {:local-variable/name (.getName local-variable)
+     :local-variable/start-label (.getStartPC local-variable)
+     :local-variable/end-label (+ (.getStartPC local-variable)
+                                  (.getLength local-variable))
+     :local-variable/index (.getIndex local-variable)
+     :local-variable/type (Utility/signatureToString (.getSignature local-variable) false)}))
 
 (defn parse-method [^JavaClass klass ^Method method]
   (let [bytecode (parse-bytecode klass method)]
@@ -139,11 +137,12 @@
      :method/jump-table (into {} (for [i (range (count bytecode))
                                        :let [{:keys [insn/label]} (nth bytecode i)]]
                                    [label i]))
-     :method/local-variable-table (or (some-> method
-                                              (.getLocalVariableTable)
-                                              (.getLocalVariableTable)
-                                              (parse-local-variable-table))
-                                      {})}))
+     :method/local-variable-table (->>
+                                   (some-> method
+                                           (.getLocalVariableTable)
+                                           (.getLocalVariableTable)
+                                           (parse-local-variable-table))
+                                   (into #{}))}))
 
 (defn class-methods [^JavaClass klass]
   (->> klass

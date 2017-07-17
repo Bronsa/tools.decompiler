@@ -9,6 +9,15 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :local-variable [ast]
+  (-> ast
+      (update :init -ast->sugared-ast)))
+
+(defmethod -ast->sugared-ast :let [ast]
+  (-> ast
+      (update :local-variable -ast->sugared-ast)
+      (update :body -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :monitor-enter [ast]
   ast)
 

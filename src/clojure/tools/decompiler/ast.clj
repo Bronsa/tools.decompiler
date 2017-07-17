@@ -1,5 +1,6 @@
 (ns clojure.tools.decompiler.ast
-  (:require [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
+  (:require [clojure.set :as set]
+            [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
             [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.utils :as u]))
 
@@ -11,7 +12,7 @@
 
 (def initial-local-ctx {:stack []
                         :pc 0
-                        :local-variable-table {}})
+                        :local-variable-table #{}})
 
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
@@ -119,7 +120,7 @@
 (defn goto-label [{:insn/keys [jump-offset label]}]
   (+ jump-offset label))
 
-(defmethod process-insn :ifnull [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+(defmethod process-insn :ifnull [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [null-label (goto-label insn)
 
         goto-end-insn  (nth insns (-> (get jump-table null-label) (- 1)))
@@ -143,7 +144,7 @@
                       :then then
                       :else else}))))
 
-(defmethod process-insn :ifeq [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+(defmethod process-insn :ifeq [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [else-label (goto-label insn)
 
         goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
@@ -164,7 +165,7 @@
                       :then then
                       :else else}))))
 
-(defmethod process-insn ::bc/number-compare [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+(defmethod process-insn ::bc/number-compare [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
         insn (nth insns (-> (get jump-table label) (+ offset)))
 
@@ -196,29 +197,55 @@
                       :then then
                       :else else}))))
 
-(defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
-  ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
-  (let [jump-label (goto-label insn)
-        locals (sort (map key (filter #(-> % val :start-index (= jump-label)) local-variable-table)))
-        args (mapv local-variable-table locals)]
-    ;; WIP conditionals
-    (-> ctx
-        (update :stack conj {:op :recur
-                             :args args}))))
+;; (defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
+;;   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
+;;   (let [jump-label (goto-label insn)
+;;         locals (sort (map key (filter #(-> % val :start-index (= jump-label)) local-variable-table)))
+;;         args (mapv local-variable-table locals)]
+;;     ;; WIP conditionals
+;;     (-> ctx
+;;         (update :stack conj {:op :recur
+;;                              :args args}))))
 
-(defmethod process-insn ::bc/load-insn [{:keys [local-variable-table] :as ctx} {:insn/keys [local-variable-element]}]
+(defn find-local-variable [{:keys [local-variable-table]} index label]
+  (->> local-variable-table
+       (filter (comp #{index} :index))
+       (filter (comp (partial >= (inc label)) :start-label))
+       (filter (comp (partial < label) :end-label))
+       (sort-by :start-label)
+       (first)))
+
+(defmethod process-insn ::bc/load-insn [ctx {:insn/keys [local-variable-element label]}]
   (let [{:insn/keys [target-index]} local-variable-element]
-    (if-let [[_ local] (find local-variable-table target-index)]
+    (if-let [local (find-local-variable ctx target-index label)]
       (-> ctx
           (update :stack conj local))
       (throw (Exception. ":(")))))
 
-(defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element]}]
+(defmethod process-insn ::bc/store-insn [{:keys [stack insns jump-table] :as ctx}
+                                         {:insn/keys [local-variable-element label length]}]
   (let [{:insn/keys [target-index]} local-variable-element
-        val (peek stack)]
-    (-> ctx
-        (update :stack pop)
-        (update :local-variable-table assoc target-index val))))
+        {:keys [start-label end-label] :as local-variable} (find-local-variable ctx target-index label)
+        init (peek stack)
+        {:keys [stack] :as ctx} (-> ctx (update :stack pop))]
+    (if (= (inc label) start-label)
+      ;; initialize let context
+      (let [{body-stack :stack body-stmnts :statements} (process-insns (-> ctx
+                                                                           (update :pc + length)
+                                                                           (assoc :terminate-at end-label)
+                                                                           (assoc :statements []))
+                                                                       insns)
+            statement? (= stack body-stack)
+            body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
+        (-> ctx
+            (assoc :pc end-label)
+            (update (if statement? :statements :stack)
+                    conj {:op :let
+                          :local-variable {:op :local-variable
+                                           :local-variable local-variable
+                                           :init init}
+                          :body body})))
+      ctx)))
 
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
@@ -277,18 +304,24 @@
         (update :stack conj (assoc target :cast target-type)))))
 
 (defn merge-local-variable-table [ctx local-variable-table]
-  (update ctx :local-variable-table merge
-         (->> (for [[idx {:local-variable/keys [name start-index end-index]}] local-variable-table]
-                [idx {:op :local
-                      :start-index start-index
-                      :end-index end-index
-                      :name name}])
-              (into {}))))
+  (update ctx :local-variable-table set/union
+         (->> (for [{:local-variable/keys [name index start-label end-label]} local-variable-table]
+                {:op :local
+                 :start-label start-label
+                 :end-label end-label
+                 :index index
+                 :name name})
+              (into #{}))))
 
-(defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table]}]
+(defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags]}]
   (let [ctx (-> ctx
                 (merge initial-local-ctx {:jump-table jump-table})
-                (assoc-in [:local-variable-table 0] {:op :local :name fn-name :start-index 0 :end-index (-> bytecode last :insn/label)})
+                (cond-> (not (:static flags))
+                  (update :local-variable-table conj {:op :local
+                                                      :index 0
+                                                      :name fn-name
+                                                      :start-label 0
+                                                      :end-label (-> bytecode last :insn/label)}))
                 (merge-local-variable-table local-variable-table)
                 (assoc :insns bytecode)
                 (process-insns bytecode))]
@@ -304,16 +337,14 @@
 
 ;; WIP push args, not just this
 
-(defn decompile-fn-method [ctx {:method/keys [return-type arg-types local-variable-table flags]
-                                :as method}]
+(defn decompile-fn-method [ctx {:method/keys [return-type local-variable-table] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)]
     {:op :fn-method
-     :args (for [i (range (count arg-types))
-                 ;; WIP doesn't work if there's no local-variable-table
-                 :let [{:local-variable/keys [name start-index type]} (get local-variable-table i)]
-                 :when (zero? start-index)]
-             {:type type
-              :name name})
+     :args (for [{:local-variable/keys [name type start-label index]} (->> local-variable-table
+                                                                           (sort-by :local-variable/index))
+                 :when (= start-label 0)]
+             {:name name
+              :type type})
      :body ast}))
 
 (defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]

@@ -14,6 +14,12 @@
 (defmethod -ast->clj :do [{:keys [statements ret]}]
   `(do ~@(map -ast->clj statements) ~(-ast->clj ret)))
 
+(defmethod -ast->clj :local-variable [{:keys [local-variable init]}]
+  `[~(-ast->clj local-variable) ~(-ast->clj init)])
+
+(defmethod -ast->clj :let [{:keys [local-variable body]}]
+  `(let* ~(-ast->clj local-variable) ~(-ast->clj body)))
+
 (defmethod -ast->clj :if [{:keys [test then else]}]
   `(if ~@(map -ast->clj [test then else])))
 
