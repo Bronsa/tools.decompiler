@@ -245,6 +245,19 @@
        (sort-by :start-label)
        (first)))
 
+(defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-type]} pool-element
+        instance (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj {:op :invoke
+                             :fn {:op :var
+                                  :ns "clojure.core"
+                                  :name "instance?"}
+                             :args [{:op :const
+                                     :val (symbol target-type)}
+                                    instance]}))))
+
 (defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
   (let [statement (peek stack)
         ctx (-> ctx (update :stack pop))]
