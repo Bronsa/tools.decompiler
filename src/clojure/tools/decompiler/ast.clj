@@ -165,22 +165,24 @@
                       :then then
                       :else else}))))
 
-(defmethod process-insn ::bc/number-compare [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label]}]
-  (let [insn (nth insns (-> (get jump-table label) (+ 1)))
+(defmethod process-insn ::bc/number-compare [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+  (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
+        insn (nth insns (-> (get jump-table label) (+ offset)))
 
         op (case (:insn/name insn)
              "ifle" ">"
              "ifge" "<"
              "ifne" "="
              "iflt" ">="
-             "ifgt" "<=")
+             "ifgt" "<="
+             "if_icmpne" "=")
 
         else-label (goto-label insn)
 
         goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
         end-label (goto-label goto-end-insn)
 
-        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 2)))
+        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ offset 1)))
 
         [a b] (peek-n stack 2)
 

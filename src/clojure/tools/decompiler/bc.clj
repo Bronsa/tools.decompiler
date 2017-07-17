@@ -255,7 +255,8 @@
 
       (derive :dcmpg ::number-compare)
       (derive :lcmp ::number-compare)
-      (derive :dcmpl ::number-compare)))
+      (derive :dcmpl ::number-compare)
+      (derive :if_icmpne ::number-compare)))
 
 (comment
   (require '[clojure.java.io :as io])
