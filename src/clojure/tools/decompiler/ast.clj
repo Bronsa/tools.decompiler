@@ -25,6 +25,7 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
+;; WIP: terminate-fn rather than terminate-at
 (defn process-insns [{:keys [stack pc jump-table terminate-at] :as ctx} bc]
   (if (or (not (get jump-table pc))
           (= pc terminate-at))
@@ -96,7 +97,7 @@
    :statements (vec (butlast exprs))
    :ret (or (last exprs) {:op :const :val nil})})
 
-(defn process-if [{:keys [insns jump-table stack] :as ctx} [start-then end-then] [start-else end-else]]
+(defn process-if [{:keys [insns jump-table stack] :as ctx} test [start-then end-then] [start-else end-else]]
   (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
         {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statements []) insns)
 
@@ -107,9 +108,13 @@
                       [(conj then-stmnts (peek then-stack))
                        (conj else-stmnts (peek else-stack))])]
 
-    {:then (->do then)
-     :else (->do else)
-     :statement? statement?}))
+    (-> ctx
+        (assoc :pc end-else)
+        (update (if statement? :statements :stack)
+                conj {:op :if
+                      :test test
+                      :then (->do then)
+                      :else (->do else)}))))
 
 (defn goto-label [{:insn/keys [jump-offset label]}]
   (+ jump-offset label))
@@ -125,18 +130,11 @@
 
         {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 3)))
 
-        [test _] (peek-n stack 2)
-
-        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+        [test _] (peek-n stack 2)]
 
     (-> ctx
         (update :stack pop-n 2)
-        (assoc :pc end-label)
-        (update (if statement? :statements :stack)
-                conj {:op :if
-                      :test test
-                      :then then
-                      :else else}))))
+        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
 (defmethod process-insn :ifeq [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [else-label (goto-label insn)
@@ -146,18 +144,11 @@
 
         {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 1)))
 
-        test (peek stack)
-
-        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+        test (peek stack)]
 
     (-> ctx
         (update :stack pop)
-        (assoc :pc end-label)
-        (update (if statement? :statements :stack)
-                conj {:op :if
-                      :test test
-                      :then then
-                      :else else}))))
+        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
 (defmethod process-insn ::bc/number-compare [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
@@ -180,16 +171,11 @@
 
         [a b] (peek-n stack 2)
 
-        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+        test {:op :invoke :fn {:op :var :ns "clojure.core" :name op} :args [a b]}]
 
     (-> ctx
         (update :stack pop-n 2)
-        (assoc :pc end-label)
-        (update (if statement? :statements :stack)
-                conj {:op :if
-                      :test {:op :invoke :fn {:op :var :ns "clojure.core" :name op} :args [a b]}
-                      :then then
-                      :else else}))))
+        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
 (defn find-local-variable [{:keys [local-variable-table]} index label]
   (->> local-variable-table
