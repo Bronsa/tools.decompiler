@@ -36,7 +36,6 @@
     (if (or (not (get jump-table pc))
             (= pc terminate-at))
       ;; pc is out of bounds, or explicit return from the block, we're done
-      ;; TODO: do we need to pop the stack?
       new-ctx
       (recur new-ctx bc))))
 
@@ -119,20 +118,6 @@
 
 (defn goto-label [{:insn/keys [jump-offset label]}]
   (+ jump-offset label))
-
-;;   >>>test
-;;   dup
-;;   ifnull -> null-label
-;;   false
-;;   ifeq -> else-label
-;; then-label:
-;;   >>>then
-;;   goto -> end-label
-;; null-label:
-;;   pop
-;; else-label:
-;;   >>>else
-;; end-label:
 
 (defmethod process-insn :ifnull [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [null-label (goto-label insn)
@@ -359,8 +344,8 @@
      :ast ast}))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
-  ;; TODO: record, type, ns, genclass, geninterface, proxy
-  (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
+  ;; TODO: record, type, ns, genclass, geninterface, proxy, varargs
+  (if (#{"clojure.lang.AFunction"} super)
     (decompile-fn bc initial-ctx)
     (throw (Exception. ":("))))
 
@@ -376,3 +361,5 @@
   (fn* ([] "yoo"))
 
   )
+
+;;; let/loop/letfn/case/deftype/reify/set!, varargs
