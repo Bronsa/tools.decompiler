@@ -144,6 +144,27 @@
                       :then then
                       :else else}))))
 
+(defmethod process-insn :ifeq [{:keys [stack local-variable-table jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
+  (let [else-label (goto-label insn)
+
+        goto-end-insn  (nth insns (-> (get jump-table else-label) (- 2)))
+        end-label (goto-label goto-end-insn)
+
+        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 1)))
+
+        test (peek stack)
+
+        {:keys [then else statement?]} (process-if ctx [then-label (:insn/label goto-end-insn)] [else-label end-label])]
+
+    (-> ctx
+        (update :stack pop)
+        (assoc :pc end-label)
+        (update (if statement? :statements :stack)
+                conj {:op :if
+                      :test test
+                      :then then
+                      :else else}))))
+
 (defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
   ;; WIP ONLY works for fn loops for now, mus be rewritten to support loops, branches
   (let [jump-label (goto-label insn)
