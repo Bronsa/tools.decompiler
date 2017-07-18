@@ -122,10 +122,88 @@
      :else
      ast)))
 
+(def math-ops
+  {"add" "+"
+   "addP" "+'"
+   "and" "bit-and"
+   "andNot" "bit-and-not"
+   "clearBit" "bit-clear"
+   "dec" "dec"
+   "decP" "dec"
+   "divide" "/"
+   "equiv" "=="
+   "flipBit" "bit-flip"
+   "gt" ">"
+   "gte" ">="
+   "inc" "inc"
+   "incP" "inc"
+   "isNeg" "neg?"
+   "isPos?" "pos?"
+   "isZero" "zero?"
+   "lt" "<"
+   "lte" "<="
+   "max" "max"
+   "min" "min"
+   "minus" "-"
+   "minusP" "-'"
+   "multiply" "*"
+   "multiplyP" "*'"
+   "not" "bit-not"
+   "or" "bit-or"
+   "quotient" "quot"
+   "remainder" "rem"
+   "setBit" "bit-set"
+   "shiftLeft" "bit-shift-left"
+   "shiftRight" "bit-shift-right"
+   "testBit" "bit-test"
+   "float_array" "float-array"
+   "short_array" "short-array"
+   "int_array" "int-array"
+   "double_array" "double-array"
+   "long_array" "long-array"
+   "char_array" "char-array"
+   "byte_array" "byte-array"
+   "boolean_array" "boolean-array"
+   "booleans" "booleans"
+   "bytes" "bytes"
+   "longs" "longs"
+   "shorts" "shorts"
+   "ints" "ints"
+   "chars" "chars"
+   "longs" "longs"
+   "doubles" "doubles"
+   "floats" "floats"
+   "unchecked_add" "+"
+   "unchecked_dec" "dec"
+   "unchecked_inc" "inc"
+   "unchecked_minus" "-"
+   "unchecked_multiply" "*"
+   "unsignedShiftRight" "unsigned-bit-shift-right"
+   "xor" "bit-xor"})
+
 (defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method arg-types] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
 
     (cond
+
+      (and (= target "clojure.lang.RT")
+           (#{"count" "nth" "get" "isReduced" "alength" "aclone" "aget" "aset" "object_array"} method))
+
+      {:op :invoke
+       :fn {:op :var
+            :ns "clojure.core"
+            :name ({"isReduced" "reduced?" "object-array"} method method)}
+       :args args}
+
+      (and (= target "clojure.lang.Util")
+           (#{"identical" "="} method))
+
+      ;; WIP uninline nil?
+      {:op :invoke
+       :fn {:op :var
+            :ns "clojure.core"
+            :name ({"identical" "identical?" "=" "="} method)}
+       :args args}
 
       (and (= target "clojure.lang.RT")
            (= method "keyword")
@@ -161,27 +239,12 @@
       (first args)
 
       (and (= target "clojure.lang.Numbers")
-           (#{"add" "divide" "multiply" "minus" "multiplyP" "minusP" "addP"
-              "min" "max" "equiv" "gte" "lte" "gt" "lt"} method)
-           (= 2 (count args)))
+           (math-ops method))
 
       {:op :invoke
        :fn {:op :var
             :ns "clojure.core"
-            :name ({"add" "+"
-                    "divide" "/"
-                    "multiply" "*"
-                    "minus" "-"
-                    "multiplyP" "*'"
-                    "minusP" "-'"
-                    "addP" "+'"
-                    "min" "min"
-                    "max" "max"
-                    "equiv" "="
-                    "gte" ">="
-                    "lte" "<="
-                    "gt" ">"
-                    "lt" "<"} method)}
+            :name (math-ops method)}
        :args args}
 
       (and (= target "clojure.lang.Symbol")

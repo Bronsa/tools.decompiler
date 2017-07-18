@@ -487,7 +487,6 @@
      :ast ast}))
 
 (defn bc->ast [{:class/keys [super] :as bc}]
-  ;; TODO: record, type, ns, genclass, geninterface, proxy, varargs
   (if (#{"clojure.lang.AFunction"} super)
     (decompile-fn bc initial-ctx)
     (throw (Exception. ":("))))
@@ -505,4 +504,4 @@
 
   )
 
-;;; loop/letfn/case/deftype/reify/set!, varargs
+;;; in-ns/def/letfn/case/deftype/reify/set!, varargs, closed overs, genclass, geninterface, proxy
