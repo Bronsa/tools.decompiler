@@ -376,27 +376,32 @@
         (update :stack conj (assoc target :cast target-type)))))
 
 (defn merge-local-variable-table [ctx local-variable-table]
-  (update ctx :local-variable-table set/union
-         (->> (for [{:local-variable/keys [name index start-label end-label]} local-variable-table]
-                {:op :local
-                 :start-label start-label
-                 :end-label end-label
-                 :index index
-                 :name name})
-              (into #{}))))
+  (let [lvt (->> (for [{:local-variable/keys [name index start-label end-label]} local-variable-table]
+                   {:op :local
+                    :start-label start-label
+                    :end-label end-label
+                    :index index
+                    :name name})
+                 (into #{}))]
+    (-> ctx
+        (assoc :local-variable-table lvt)
+        (assoc :loop-args (->> lvt
+                               (filter (comp zero? :start-label))
+                               (sort-by :index)
+                               (vec))))))
 
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags]}]
   (let [ctx (-> ctx
                 (merge initial-local-ctx {:jump-table jump-table})
                 (merge-local-variable-table local-variable-table)
                 (cond-> (not (:static flags))
-                  (update :local-variable-table conj {:op :local
-                                                      :this? true
-                                                      :index 0
-                                                      :name fn-name
-                                                      :start-label 0
-                                                      :end-label (-> bytecode last :insn/label)}))
-
+                  (-> (update :local-variable-table conj {:op :local
+                                                          :this? true
+                                                          :index 0
+                                                          :name fn-name
+                                                          :start-label 0
+                                                          :end-label (-> bytecode last :insn/label)})
+                      (update :loop-args #(vec (rest %)))))
                 (assoc :insns bytecode)
                 (process-insns bytecode))]
     (apply dissoc ctx :jump-table (keys initial-local-ctx))))
@@ -409,13 +414,11 @@
   (let [method (u/find-method methods {:method/name "<init>"})]
     (process-method-insns ctx method)))
 
-;; WIP push args, not just this
-
 (defn decompile-fn-method [ctx {:method/keys [return-type local-variable-table] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)]
     {:op :fn-method
-     :args (for [{:local-variable/keys [name type start-label index]} (->> local-variable-table
-                                                                           (sort-by :local-variable/index))
+     :args (for [{:local-variable/keys [name type start-label]} (->> local-variable-table
+                                                                     (sort-by :local-variable/index))
                  :when (= start-label 0)]
              {:name name
               :type type})
@@ -424,7 +427,6 @@
 (defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
-        ;; WIP is DL enabled per fn or per fn method? I can't remember. Defensively assume the latter for now
         invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
                                                   :let [argc (count arg-types)]
                                                   :when (empty? (filter (fn [{:method/keys [arg-types]}]
