@@ -147,6 +147,11 @@
            (= 1 (count args)))
 
       (first args)
+      (and (= target "clojure.lang.Numbers")
+           (= "num" method)
+           (= 1 (count args)))
+
+      (first args)
 
       (and (= target "clojure.lang.Symbol")
            (= method "intern")
