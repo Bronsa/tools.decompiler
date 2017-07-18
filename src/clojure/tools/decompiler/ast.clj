@@ -220,8 +220,31 @@
   (= (+ label length) start-label))
 
 ;; WIP loop/letfn
-(defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [end-label] :as local-variable} init]
-  (let [{:insn/keys [length]} (nth insns (get jump-table pc))
+(defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [start-label end-label index] :as local-variable} init]
+  (let [loop? (loop [[{:insn/keys [name length label local-variable-element] :as insn} & insns] (drop (inc (get jump-table pc)) insns)]
+
+                (cond
+
+                  (or (nil? insn)
+                      (> label end-label))
+                  false
+
+                  (and (isa? bc/insn-h (keyword name) ::bc/store-insn)
+                       (= (:insn/target-index local-variable-element) index)
+                       (= (:insn/start-label (find-local-variable ctx label index)) start-label))
+                  label
+
+                  ;; detect and ignore locals clearing
+                  (and (isa? bc/insn-h (keyword name) ::bc/load-insn)
+                       (= (-> insns first :insn/name) "aconst_null")
+                       (isa? bc/insn-h (-> insns second :insn/name keyword) ::bc/store-insn))
+                  (recur (drop 2 insns))
+
+
+                  :else
+                  (recur insns)))
+
+        {:insn/keys [length]} (nth insns (get jump-table pc))
         {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
                                                                        (update :pc + length)
                                                                        (assoc :terminate? (pc= end-label))
