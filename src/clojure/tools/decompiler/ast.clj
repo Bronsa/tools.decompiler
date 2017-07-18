@@ -426,10 +426,37 @@
                                              :field target-name}
                                     :val val})))))
 
-(defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-class target-name]} pool-element]
-    (if (= target-class class-name)
+(defn process-keyword-invoke [{:keys [insns jump-table pc fields] :as ctx} {:insn/keys [length pool-element]}]
+  (let [{:insn/keys [target-name]} pool-element
+        {:keys [pc statements stack]} (process-insns (assoc ctx
+                                                            :pc (->> (get jump-table pc) (+ 2) (nth insns) :insn/label)
+                                                            :terminate? (fn [{:keys [pc jump-table insns]}]
+                                                                          (->> (get jump-table pc)
+                                                                               (nth insns)
+                                                                               :insn/name
+                                                                               (= "dup_x2")))
+                                                            :statements [])
+                                                     insns)
+        target (->do (conj statements (peek stack)))]
+    (-> ctx
+        (assoc :pc (+ pc 36)) ;; why bother writing robust code when we can just hardcode bytecode offsets
+        (update :stack conj {:op :invoke
+                             :fn (-> (get-in fields [target-name :args 0 :args 1])
+                                     (update :val keyword))
+                             :args [target]}))))
+
+(defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element] :as insn}]
+  (let [{:insn/keys [target-class target-name target-type]} pool-element]
+    (cond
+
+      (and (= target-type "clojure.lang.ILookupThunk")
+           (= target-class class-name))
+      (process-keyword-invoke ctx insn)
+
+      (= target-class class-name)
       (update ctx :stack conj (get fields target-name))
+
+      :else
       (update ctx :stack conj {:op :static-field
                                :target target-class
                                :field target-name}))))
@@ -605,4 +632,4 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify, varargs, genclass, geninterface, proxy, keyword/protocol inline caches
+;;; in-ns/def/letfn/case/deftype/reify, varargs, genclass, geninterface, proxy, protocol inline caches
