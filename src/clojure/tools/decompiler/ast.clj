@@ -234,14 +234,10 @@
 
       (and (isa? bc/insn-h (keyword name) ::bc/store-insn)
            (= (:insn/target-index local-variable-element) index)
-           (= (:start-label (find-local-variable ctx index label)) start-label))
+           (= (:start-label (find-local-variable ctx index label)) start-label)
+           (= "goto" (:insn/name (first insns)))
+           (< (goto-label (first insns)) end-label))
       (+ label length)
-
-      ;; detect and ignore locals clearing
-      (and (isa? bc/insn-h (keyword name) ::bc/load-insn)
-           (= (-> insns first :insn/name) "aconst_null")
-           (isa? bc/insn-h (-> insns second :insn/name keyword) ::bc/store-insn))
-      (recur (drop 2 insns))
 
       :else
       (recur insns))))
