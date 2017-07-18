@@ -144,7 +144,7 @@
       {:op :const
        :val (e/read-string (-> args first :val))}
 
-      ;; WIP: this is too aggressive
+      ;; WIP: this is too aggressive, might throw away useful casts
       (and (= target "clojure.lang.RT")
            (#{"doubleCast" "intCast" "box" "charCast" "booleanCast" "byteCast"
               "shortCast" "longCast" "floatCast" "uncheckedDoubleCast"
@@ -153,11 +153,36 @@
            (= 1 (count args)))
 
       (first args)
+
       (and (= target "clojure.lang.Numbers")
            (= "num" method)
            (= 1 (count args)))
 
       (first args)
+
+      (and (= target "clojure.lang.Numbers")
+           (#{"add" "divide" "multiply" "minus" "multiplyP" "minusP" "addP"
+              "min" "max" "equiv" "gte" "lte" "gt" "lt"} method)
+           (= 2 (count args)))
+
+      {:op :invoke
+       :fn {:op :var
+            :ns "clojure.core"
+            :name ({"add" "+"
+                    "divide" "/"
+                    "multiply" "*"
+                    "minus" "-"
+                    "multiplyP" "*'"
+                    "minusP" "-'"
+                    "addP" "+'"
+                    "min" "min"
+                    "max" "max"
+                    "equiv" "="
+                    "gte" ">="
+                    "lte" "<="
+                    "gt" ">"
+                    "lt" "<"} method)}
+       :args args}
 
       (and (= target "clojure.lang.Symbol")
            (= method "intern")
