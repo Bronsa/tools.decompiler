@@ -25,10 +25,9 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
-;; WIP: terminate-fn rather than terminate-at
-(defn process-insns [{:keys [stack pc jump-table terminate-at] :as ctx} bc]
+(defn process-insns [{:keys [stack pc jump-table terminate?] :as ctx :or {terminate? (constantly false)}} bc]
   (if (or (not (get jump-table pc))
-          (= pc terminate-at))
+          (terminate? ctx))
     ctx
     (let [insn-n (get jump-table pc)
           {:insn/keys [length] :as insn} (nth bc insn-n)]
@@ -97,9 +96,13 @@
    :statements (vec (butlast exprs))
    :ret (or (last exprs) {:op :const :val nil})})
 
+(defn pc= [terminate-at]
+  (fn [{:keys [pc]}]
+    (= pc terminate-at)))
+
 (defn process-if [{:keys [insns jump-table stack] :as ctx} test [start-then end-then] [start-else end-else]]
-  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate-at end-then :statements []) insns)
-        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate-at end-else :statements []) insns)
+  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []) insns)
+        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate? (pc= end-else) :statements []) insns)
 
         statement? (= stack then-stack else-stack)
 
@@ -221,7 +224,7 @@
   (let [{:insn/keys [length]} (nth insns (get jump-table pc))
         {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
                                                                        (update :pc + length)
-                                                                       (assoc :terminate-at end-label)
+                                                                       (assoc :terminate? (pc= end-label))
                                                                        (assoc :statements []))
                                                                    insns)
         statement? (= stack body-stack)
@@ -420,4 +423,4 @@
 
   )
 
-;;; let/loop/letfn/case/deftype/reify/set!, varargs
+;;; loop/letfn/case/deftype/reify/set!, varargs
