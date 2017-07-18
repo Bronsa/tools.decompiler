@@ -434,36 +434,37 @@
 
 (defmethod process-insn ::bc/math-insn [{:keys [stack] :as ctx} {:insn/keys [name]}]
   (let [argc (if (#{"dneg" "lneg"} name) 1 2)
-        args (peek-n stack argc)]
+        args (peek-n stack argc)
+        op  ({"dadd" "+"
+              "ddiv" "/"
+              "dmul" "*"
+              "dsub" "-"
+              "iadd" "+"
+              "iand" "bit-and"
+              "idiv" "/"
+              "imul" "*"
+              "irem" "rem"
+              "ishl" "bit-shift-left"
+              "ishr" "bit-shift-right"
+              "isub" "-"
+              "iushr" "unsigned-bit-shift-right"
+              "ladd" "+"
+              "land" "bit-and"
+              "ldiv" "quot"
+              "lmul" "*"
+              "lor" "bit-or"
+              "lrem" "rem"
+              "lshl" "bit-shift-left"
+              "lshr" "bit-shift-right"
+              "lsub" "-"
+              "lushr" "unsigned-bit-shift-right"
+              "lxor" "bit-xor"} name)]
     (-> ctx
         (update :stack pop-n argc)
         (update :stack conj {:op :invoke
                              :fn {:op :var
                                   :ns "clojure.core"
-                                  :name ({"dadd" "+"
-                                          "ddiv" "/"
-                                          "dmul" "*"
-                                          "dsub" "-"
-                                          "iadd" "+"
-                                          "iand" "bit-and"
-                                          "idiv" "/"
-                                          "imul" "*"
-                                          "irem" "rem"
-                                          "ishl" "bit-shift-left"
-                                          "ishr" "bit-shift-right"
-                                          "isub" "-"
-                                          "iushr" "unsigned-bit-shift-right"
-                                          "ladd" "+"
-                                          "land" "bit-and"
-                                          "ldiv" "quot"
-                                          "lmul" "*"
-                                          "lor" "bit-or"
-                                          "lrem" "rem"
-                                          "lshl" "bit-shift-left"
-                                          "lshr" "bit-shift-right"
-                                          "lsub" "-"
-                                          "lushr" "unsigned-bit-shift-right"
-                                          "lxor" "bit-xor"} name)}
+                                  :name op}
                              :args args}))))
 
 (defmethod process-insn :checkcast [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
