@@ -218,7 +218,9 @@
     (if-let [local (find-local-variable ctx target-index label)]
       (-> ctx
           (update :stack conj local))
-      (throw (Exception. ":(")))))
+      (-> ctx
+          (update :stack conj {:op :local
+                               :name (str "arg_" label)})))))
 
 (defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
   (= (+ label length) start-label))
@@ -378,17 +380,32 @@
         val (peek stack)]
     (-> ctx
         (update :stack pop)
-        ;; WIP if not produce set!, logic will have to change for deftype as we can set! to this
+        ;; WIP if not produce set!
         (cond-> (= class-name target-class)
           (update :fields assoc target-name val)))))
 
 (defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element]
-    ;; WIP logic will have to change for deftype/defrecord as we can get from this
     (if (= target-class class-name)
       (update ctx :stack conj (get fields target-name))
       (update ctx :stack conj {:op :static-field
                                :target target-class
+                               :field target-name}))))
+
+(defmethod process-insn :putfield [ctx _]
+  ;; WIP logic will have to change for deftype/defrecord as we can set! this
+  (-> ctx
+      (update :stack pop-n 2)))
+
+(defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name]} pool-element
+        instance (peek stack)
+        ctx (update ctx :stack pop)]
+    ;; WIP logic will have to change for deftype/defrecord as we can get from this
+    (if (= target-class class-name)
+      (update ctx :stack conj (get fields target-name {:op :local :name target-name}))
+      (update ctx :stack conj {:op :instance-field
+                               :instance target-class
                                :field target-name}))))
 
 (defmethod process-insn :invokestatic [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
