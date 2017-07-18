@@ -377,12 +377,17 @@
 
 (defmethod process-insn :putstatic [{:keys [stack class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
-        val (peek stack)]
-    (-> ctx
-        (update :stack pop)
-        ;; WIP if not produce set!
-        (cond-> (= class-name target-class)
-          (update :fields assoc target-name val)))))
+        val (peek stack)
+        ctx (update ctx :stack pop)]
+    (if (= class-name target-class)
+      (-> ctx
+          (update :fields assoc target-name val))
+      (-> ctx
+          (update :statements conj {:op :set!
+                                    :target {:op :static-field
+                                             :target target-class
+                                             :field target-name}
+                                    :val val})))))
 
 (defmethod process-insn :getstatic [{:keys [fields class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element]
@@ -392,10 +397,16 @@
                                :target target-class
                                :field target-name}))))
 
-(defmethod process-insn :putfield [ctx _]
-  ;; WIP logic will have to change for deftype/defrecord as we can set! this
-  (-> ctx
-      (update :stack pop-n 2)))
+(defmethod process-insn :putfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
+  (let [{:insn/keys [target-class target-name]} pool-element
+        [instance val] (peek-n 2 stack)
+        ctx (update ctx :stack pop-n 2)]
+    ;; WIP logic will have to change for deftype/defrecord as we can set! this
+    (update :statements conj {:op :set!
+                              :target {:op :instance-field
+                                       :instance instance
+                                       :field target-name}
+                              :val val})))
 
 (defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
@@ -405,7 +416,7 @@
     (if (= target-class class-name)
       (update ctx :stack conj (get fields target-name {:op :local :name target-name}))
       (update ctx :stack conj {:op :instance-field
-                               :instance target-class
+                               :instance instance
                                :field target-name}))))
 
 (defmethod process-insn :invokestatic [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]

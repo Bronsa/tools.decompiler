@@ -34,6 +34,12 @@
 (defmethod -ast->clj :if [{:keys [test then else]}]
   `(if ~@(map -ast->clj [test then else])))
 
+(defmethod -ast->clj :set! [{:keys [target field]}]
+  `(set! ~(-ast->clj target) ~(-ast->clj field)))
+
+(defmethod -ast->clj :instance-field [{:keys [instance field]}]
+  `((symbol (str ".-" field)) ~(-ast->clj instance)))
+
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
 

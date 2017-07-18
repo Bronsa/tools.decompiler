@@ -18,6 +18,11 @@
       (update :local-variable -ast->sugared-ast)
       (update :body -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :set! [ast]
+  (-> ast
+      (update :target -ast->sugared-ast)
+      (update :val -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :loop [ast]
   (-> ast
       (update :local-variables #(mapv -ast->sugared-ast %))
@@ -64,6 +69,10 @@
 
 (defmethod -ast->sugared-ast :the-var [ast]
   ast)
+
+(defmethod -ast->sugared-ast :instance-field [ast]
+  (-> ast
+      (update :instance -ast->sugared-ast)))
 
 (defmethod -ast->sugared-ast :static-field [{:keys [target field] :as ast}]
   (cond
