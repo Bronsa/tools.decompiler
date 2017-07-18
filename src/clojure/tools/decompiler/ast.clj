@@ -58,14 +58,20 @@
       (update :stack conj {:op :const
                            :val (:insn/target-value pool-element)})))
 
+(defmethod process-insn :swap [{:keys [stack] :as ctx} _]
+  (let [[v2 v1] (peek-n stack 2)]
+    (-> ctx
+        (update :stack pop-n 2)
+        (update :stack conj v1 v2))))
+
 (defmethod process-insn :dup_x1 [{:keys [stack] :as ctx} _]
-  (let [[v2 v1] (peek stack)]
+  (let [[v2 v1] (peek-n stack 2)]
     (-> ctx
         (update :stack pop-n 2)
         (update :stack conj v1 v2 v1))))
 
 (defmethod process-insn :dup_x2 [{:keys [stack] :as ctx} _]
-  (let [[v2 v2 v1] (peek stack)]
+  (let [[v3 v2 v1] (peek-n stack 3)]
     (-> ctx
         (update :stack pop-n 3)
         (update :stack conj v1 v3 v2 v1))))
