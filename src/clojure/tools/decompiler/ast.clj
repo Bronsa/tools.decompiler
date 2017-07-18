@@ -70,17 +70,10 @@
         (update :stack pop-n 2)
         (update :stack conj v1 v2 v1))))
 
-(defmethod process-insn :dup_x2 [{:keys [stack] :as ctx} _]
-  (let [[v3 v2 v1] (peek-n stack 3)]
-    (-> ctx
-        (update :stack pop-n 3)
-        (update :stack conj v1 v3 v2 v1))))
-
 (defmethod process-insn :dup [{:keys [stack] :as ctx} _]
   (let [val (peek stack)]
     (-> ctx
         (update :stack conj val))))
-
 
 (defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
