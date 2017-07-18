@@ -238,8 +238,8 @@
 
       (and (isa? bc/insn-h (keyword name) ::bc/store-insn)
            (= (:insn/target-index local-variable-element) index)
-           (= (:insn/start-label (find-local-variable ctx label index)) start-label))
-      label
+           (= (:start-label (find-local-variable ctx index label)) start-label))
+      (+ label length)
 
       ;; detect and ignore locals clearing
       (and (isa? bc/insn-h (keyword name) ::bc/load-insn)
@@ -247,30 +247,41 @@
            (isa? bc/insn-h (-> insns second :insn/name keyword) ::bc/store-insn))
       (recur (drop 2 insns))
 
-
       :else
       (recur insns))))
 
+(defn find-loop-label [{:keys [insns jump-table] :as ctx} recur-start-label]
+  (-> ctx
+      (assoc :pc recur-start-label
+             :terminate? (fn [{:keys [pc jump-table insns]}]
+                           (let [insn (nth insns (get jump-table pc))]
+                             (and (= "goto" (:insn/name insn))
+                                  (< (goto-label insn) recur-start-label)))))
+      (process-insns insns)
+      :pc))
+
 ;; WIP loop/letfn
 (defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [end-label] :as local-variable} init]
-  (let [?recur-start-label (find-recur-start-label ctx local-variable)
+  (let [{:insn/keys [length]} (nth insns (get jump-table pc))]
+    (if-let [loop-label (some->> (find-recur-start-label ctx local-variable) (find-loop-label ctx))]
 
-        {:insn/keys [length]} (nth insns (get jump-table pc))
-        {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
-                                                                       (update :pc + length)
-                                                                       (assoc :terminate? (pc= end-label))
-                                                                       (assoc :statements []))
-                                                                   insns)
-        statement? (= stack body-stack)
-        body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
-    (-> ctx
-        (assoc :pc end-label)
-        (update (if statement? :statements :stack)
-                conj {:op :let
-                      :local-variable {:op :local-variable
-                                       :local-variable local-variable
-                                       :init init}
-                      :body body}))))
+      (throw (Exception. ":("))
+
+      (let [{body-stack :stack body-stmnts :statements} (process-insns (-> ctx
+                                                                           (update :pc + length)
+                                                                           (assoc :terminate? (pc= end-label))
+                                                                           (assoc :statements []))
+                                                                       insns)
+            statement? (= stack body-stack)
+            body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
+        (-> ctx
+            (assoc :pc end-label)
+            (update (if statement? :statements :stack)
+                    conj {:op :let
+                          :local-variable {:op :local-variable
+                                           :local-variable local-variable
+                                           :init init}
+                          :body body}))))))
 
 (defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
