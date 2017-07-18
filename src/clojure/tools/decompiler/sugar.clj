@@ -28,6 +28,14 @@
       (update :local-variables #(mapv -ast->sugared-ast %))
       (update :body -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :new [ast]
+  (-> ast
+      (update :args #(mapv -ast->sugared-ast %))))
+
+(defmethod -ast->sugared-ast :throw [ast]
+  (-> ast
+      (update :ex -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :monitor-enter [ast]
   ast)
 
@@ -175,7 +183,6 @@
    "boolean_array" "boolean-array"
    "booleans" "booleans"
    "bytes" "bytes"
-   "longs" "longs"
    "shorts" "shorts"
    "ints" "ints"
    "chars" "chars"
@@ -201,7 +208,7 @@
       {:op :invoke
        :fn {:op :var
             :ns "clojure.core"
-            :name ({"isReduced" "reduced?" "object-array"} method method)}
+            :name ({"isReduced" "reduced?" "object_array" "object-array"} method method)}
        :args args}
 
       (and (= target "clojure.lang.Util")

@@ -356,11 +356,27 @@
       (process-lexical-block ctx local-variable init)
       ctx)))
 
+;; WIP new on :new rather than invokespecial
+(defmethod process-insn :new [ctx _]
+  ctx)
+
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
-        argc (count (conj target-arg-types target-class))]
+        argc (count target-arg-types)
+        args (peek-n stack argc)]
     (-> ctx
-        (update :stack pop-n argc))))
+        (update :stack pop-n (inc argc))
+        (update :stack conj {:op :new
+                             :class target-class
+                             :args args}))))
+
+(defmethod process-insn :athrow [{:keys [stack] :as ctx} _]
+  (let [ex (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :statements conj {:op :throw
+                                  :ex ex}))))
+
 
 (defmethod process-insn ::bc/invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-arg-types]} pool-element

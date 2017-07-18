@@ -37,6 +37,12 @@
 (defmethod -ast->clj :set! [{:keys [target field]}]
   `(set! ~(-ast->clj target) ~(-ast->clj field)))
 
+(defmethod -ast->clj :throw [{:keys [ex]}]
+  `(throw ~(-ast->clj ex)))
+
+(defmethod -ast->clj :new [{:keys [class args]}]
+  `(~(symbol (str class ".")) ~@(map -ast->clj args)))
+
 (defmethod -ast->clj :instance-field [{:keys [instance field]}]
   `((symbol (str ".-" field)) ~(-ast->clj instance)))
 
