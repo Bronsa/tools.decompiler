@@ -199,23 +199,19 @@
 (defn find-init-local [{:keys [local-variable-table]} label]
   (->> local-variable-table
        (filter (comp (partial = label) :start-label))
+       ;; why is this here?
        (filter (comp (partial < label) :end-label))
        (sort-by :start-label)
        (first)))
 
-(defmethod process-insn :goto [{:keys [stack local-variable-table] :as ctx} insn]
-  ;; WIP ONLY works for fn loops for now, must be rewritten to support loops, branches
-  (let [jump-label (goto-label insn)]
-    (if (zero? jump-label)
-      (let [args (->> local-variable-table
-                      (filter (comp (partial = 0) :start-label))
-                      (remove :this?)
-                      (sort-by :index)
-                      (mapv :init))]
-        (-> ctx
-            (update :stack conj {:op :recur
-                                 :args args})))
-      (throw (Exception. ":(")))))
+(defmethod process-insn :goto [{:keys [stack loop-args] :as ctx} insn]
+  (let [jump-label (goto-label insn)
+        args (for [{:keys [start-label index]} loop-args
+                   :let [{:keys [init]} (find-local-variable ctx index start-label)]]
+               init)]
+    (-> ctx
+        (update :stack conj {:op :recur
+                             :args (vec args)}))))
 
 (defmethod process-insn ::bc/load-insn [ctx {:insn/keys [local-variable-element label]}]
   (let [{:insn/keys [target-index]} local-variable-element]
