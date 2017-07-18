@@ -271,11 +271,14 @@
   (let [{:insn/keys [target-index]} local-variable-element
         {:keys [start-label end-label] :as local-variable} (find-local-variable ctx target-index (+ label length))
         init (peek stack)
-        ctx (-> ctx (update :stack pop))]
+        initialized-local-variable (assoc local-variable :init init)
+        ctx (-> ctx
+                (update :stack pop)
+                (update :local-variable-table disj local-variable)
+                (update :local-variable-table conj initialized-local-variable))]
     (if (init-local-variable? insn local-variable)
       ;; initialize let context
       (process-lexical-block ctx local-variable init)
-      ;; WIP must assoc val for recur
       ctx)))
 
 (defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
