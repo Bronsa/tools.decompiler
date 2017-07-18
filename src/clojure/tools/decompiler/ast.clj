@@ -533,4 +533,4 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify/set!, varargs, closed overs, genclass, geninterface, proxy
+;;; in-ns/def/letfn/case/deftype/reify, varargs, genclass, geninterface, proxy
