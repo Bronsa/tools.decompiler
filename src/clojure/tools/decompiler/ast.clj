@@ -50,6 +50,9 @@
 (defmethod process-insn :return [ctx _]
   ctx)
 
+(defmethod process-insn :nop [ctx _]
+  ctx)
+
 (defmethod process-insn ::bc/const-insn [ctx {:insn/keys [pool-element]}]
   (-> ctx
       (update :stack conj {:op :const
