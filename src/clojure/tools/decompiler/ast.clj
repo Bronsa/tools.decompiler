@@ -91,18 +91,18 @@
         (update :stack conj {:op :monitor-exit
                              :sentinel sentinel}))))
 
+(defn ->do [exprs]
+  (if (empty? (second exprs))
+    (first exprs)
+    {:op :do
+     :statements (vec (butlast exprs))
+     :ret (or (last exprs) {:op :const :val nil})}))
+
 (defmethod process-insn :areturn [{:keys [stack statements] :as ctx} _]
   (let [ret (peek stack)]
     (-> ctx
         (assoc :stack [] :statements []
-               :ast {:op :do
-                     :ret ret
-                     :statements statements}))))
-
-(defn ->do [exprs]
-  {:op :do
-   :statements (vec (butlast exprs))
-   :ret (or (last exprs) {:op :const :val nil})})
+               :ast (->do (conj statements ret))))))
 
 (defn pc= [terminate-at]
   (fn [{:keys [pc]}]
