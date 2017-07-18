@@ -401,18 +401,19 @@
   (let [{:insn/keys [target-class target-name]} pool-element
         [instance val] (peek-n 2 stack)
         ctx (update ctx :stack pop-n 2)]
-    ;; WIP logic will have to change for deftype/defrecord as we can set! this
     (update :statements conj {:op :set!
-                              :target {:op :instance-field
-                                       :instance instance
-                                       :field target-name}
+                              :target (if (= target-class class-name)
+                                        {:op :local
+                                         :name target-name}
+                                        {:op :instance-field
+                                         :instance instance
+                                         :field target-name})
                               :val val})))
 
 (defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
         instance (peek stack)
         ctx (update ctx :stack pop)]
-    ;; WIP logic will have to change for deftype/defrecord as we can get from this
     (if (= target-class class-name)
       (update ctx :stack conj (get fields target-name {:op :local :name target-name}))
       (update ctx :stack conj {:op :instance-field
