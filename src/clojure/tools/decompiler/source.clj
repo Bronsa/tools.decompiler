@@ -28,6 +28,9 @@
 (defmethod -ast->clj :let [{:keys [local-variable body]}]
   `(let* ~(-ast->clj local-variable) ~(-ast->clj body)))
 
+(defmethod -ast->clj :loop [{:keys [local-variables body]}]
+  `(loop* [~@(mapcat -ast->clj local-variables)] ~(-ast->clj body)))
+
 (defmethod -ast->clj :if [{:keys [test then else]}]
   `(if ~@(map -ast->clj [test then else])))
 

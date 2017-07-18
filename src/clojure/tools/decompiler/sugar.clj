@@ -18,6 +18,11 @@
       (update :local-variable -ast->sugared-ast)
       (update :body -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :loop [ast]
+  (-> ast
+      (update :local-variables #(mapv -ast->sugared-ast %))
+      (update :body -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :monitor-enter [ast]
   ast)
 
@@ -42,7 +47,8 @@
   ast)
 
 (defmethod -ast->sugared-ast :recur [ast]
-  ast)
+  (-> ast
+      (update :args #(mapv -ast->sugared-ast %))))
 
 (defmethod -ast->sugared-ast :vector [ast]
   ast)
