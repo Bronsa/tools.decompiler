@@ -227,30 +227,33 @@
 (defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
   (= (+ label length) start-label))
 
+(defn find-recur-start-label [{:keys [jump-table pc insns] :as ctx} {:keys [start-label end-label index]}]
+  (loop [[{:insn/keys [name length label local-variable-element] :as insn} & insns] (drop (inc (get jump-table pc)) insns)]
+
+    (cond
+
+      (or (nil? insn)
+          (> label end-label))
+      false
+
+      (and (isa? bc/insn-h (keyword name) ::bc/store-insn)
+           (= (:insn/target-index local-variable-element) index)
+           (= (:insn/start-label (find-local-variable ctx label index)) start-label))
+      label
+
+      ;; detect and ignore locals clearing
+      (and (isa? bc/insn-h (keyword name) ::bc/load-insn)
+           (= (-> insns first :insn/name) "aconst_null")
+           (isa? bc/insn-h (-> insns second :insn/name keyword) ::bc/store-insn))
+      (recur (drop 2 insns))
+
+
+      :else
+      (recur insns))))
+
 ;; WIP loop/letfn
-(defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [start-label end-label index] :as local-variable} init]
-  (let [loop? (loop [[{:insn/keys [name length label local-variable-element] :as insn} & insns] (drop (inc (get jump-table pc)) insns)]
-
-                (cond
-
-                  (or (nil? insn)
-                      (> label end-label))
-                  false
-
-                  (and (isa? bc/insn-h (keyword name) ::bc/store-insn)
-                       (= (:insn/target-index local-variable-element) index)
-                       (= (:insn/start-label (find-local-variable ctx label index)) start-label))
-                  label
-
-                  ;; detect and ignore locals clearing
-                  (and (isa? bc/insn-h (keyword name) ::bc/load-insn)
-                       (= (-> insns first :insn/name) "aconst_null")
-                       (isa? bc/insn-h (-> insns second :insn/name keyword) ::bc/store-insn))
-                  (recur (drop 2 insns))
-
-
-                  :else
-                  (recur insns)))
+(defn process-lexical-block [{:keys [insns stack jump-table pc] :as ctx} {:keys [end-label] :as local-variable} init]
+  (let [?recur-start-label (find-recur-start-label ctx local-variable)
 
         {:insn/keys [length]} (nth insns (get jump-table pc))
         {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
