@@ -112,7 +112,7 @@
       :args args}
 
      (and (= target-class "clojure.lang.Var")
-          (= method "getRawRoot")
+          (#{"getRoot" "getRawRoot"} method)
           (= (:op target) :the-var))
 
      {:op :var
