@@ -98,7 +98,7 @@
      :statements (vec (butlast exprs))
      :ret (or (last exprs) {:op :const :val nil})}))
 
-(defmethod process-insn :areturn [{:keys [stack statements] :as ctx} _]
+(defmethod process-insn ::bc/return-value [{:keys [stack statements] :as ctx} _]
   (let [ret (peek stack)]
     (-> ctx
         (assoc :stack [] :statements []

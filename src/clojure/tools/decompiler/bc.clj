@@ -262,6 +262,13 @@
       (derive :lastore ::array-store)
       (derive :sastore ::array-store)
 
+      (derive :areturn ::return-value)
+      (derive :dreturn ::return-value)
+      (derive :freturn ::return-value)
+      (derive :ireturn ::return-value)
+      (derive :lreturn ::return-value)
+      (derive :sreturn ::return-value)
+
       (derive :dneg ::math-insn)
       (derive :lneg ::math-insn)
 
