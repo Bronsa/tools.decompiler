@@ -300,7 +300,10 @@
   (let [statement (peek stack)
         ctx (-> ctx (update :stack pop))]
     (if-let [local-variable (find-init-local ctx (+ label length))]
-      (process-lexical-block ctx local-variable statement)
+      (-> ctx
+          (update :local-variable-table disj local-variable)
+          (update :local-variable-table conj (assoc local-variable :init statement))
+          (process-lexical-block local-variable statement))
       (-> ctx
           (update :statements conj statement)))))
 
@@ -315,7 +318,6 @@
                 (update :local-variable-table disj local-variable)
                 (update :local-variable-table conj initialized-local-variable))]
     (if (init-local-variable? insn local-variable)
-      ;; initialize let context
       (process-lexical-block ctx local-variable init)
       ctx)))
 
