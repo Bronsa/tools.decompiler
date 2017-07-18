@@ -605,4 +605,4 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify, varargs, genclass, geninterface, proxy
+;;; in-ns/def/letfn/case/deftype/reify, varargs, genclass, geninterface, proxy, keyword/protocol inline caches
