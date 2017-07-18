@@ -35,9 +35,8 @@
 (defmethod -ast->clj :set [{:keys [items]}]
   (into #{} (map -ast->clj) items))
 
-;; wip hash or array map
 (defmethod -ast->clj :map [{:keys [items]}]
-  (apply hash-map (map -ast->clj items)))
+  (into {} (map vec (partition 2 items))))
 
 (defmethod -ast->clj :array [{:keys [!items]}]
   (object-array (mapv -ast->clj @!items)))
