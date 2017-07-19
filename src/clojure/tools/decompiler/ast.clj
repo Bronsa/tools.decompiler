@@ -569,13 +569,15 @@
     (process-method-insns ctx method)))
 
 (defn decompile-fn-method [ctx {:method/keys [return-type local-variable-table] :as method}]
-  (let [{:keys [ast]} (process-method-insns ctx method)]
+  (let [{:keys [ast]} (process-method-insns ctx method)
+        args (for [{:local-variable/keys [name type start-label]} (->> local-variable-table
+                                                                       (sort-by :local-variable/index))
+                   :when (= start-label 0)]
+               {:name name
+                :type type})]
     {:op :fn-method
-     :args (for [{:local-variable/keys [name type start-label]} (->> local-variable-table
-                                                                     (sort-by :local-variable/index))
-                 :when (= start-label 0)]
-             {:name name
-              :type type})
+     :var-args? (-> args last :type (= "clojure.lang.ISeq"))
+     :args args
      :body ast}))
 
 (defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]

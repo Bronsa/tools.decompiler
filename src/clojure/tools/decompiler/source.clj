@@ -65,12 +65,13 @@
   (object-array (mapv -ast->clj @!items)))
 
 (defmethod -ast->clj :fn [{:keys [fn-methods]}]
+  ;; wip meta, fn name
   `(fn* ~@(map -ast->clj fn-methods)))
 
-(defmethod -ast->clj :fn-method [{:keys [args body]}]
-  ;; wip meta, name
+(defmethod -ast->clj :fn-method [{:keys [args body var-args?]}]
+  ;; wip tags
   (let [argv (mapv (comp symbol :name) args)
-        argv (if (= "clojure.lang.ISeq" (-> args last :type))
+        argv (if var-args?
                (into (pop argv) ['& (peek argv)])
                argv)]
     `(~argv ~(-ast->clj body))))
