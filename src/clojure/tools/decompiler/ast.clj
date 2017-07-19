@@ -47,10 +47,7 @@
                           new-pc)))
           (recur bc)))))
 
-(defmethod process-insn :return [ctx _]
-  ctx)
-
-(defmethod process-insn :nop [ctx _]
+(defmethod process-insn ::bc/no-op [ctx _]
   ctx)
 
 (defmethod process-insn ::bc/const-insn [ctx {:insn/keys [pool-element]}]
