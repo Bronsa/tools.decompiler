@@ -66,8 +66,8 @@
 (defmethod -ast->sugared-ast :vector [ast]
   ast)
 
-(defmethod -ast->sugared-ast :array [ast]
-  ;; WIP sugar elements
+(defmethod -ast->sugared-ast :array [{:keys [!items] :as ast}]
+  (swap! !items #(mapv -ast->sugared-ast %))
   ast)
 
 (defmethod -ast->sugared-ast :local [ast]
@@ -119,7 +119,7 @@
 (defmethod -ast->sugared-ast :invoke-instance [{:keys [method target-class] :as ast}]
   (let [{:keys [target args] :as ast} (-> ast
                                          (update :target -ast->sugared-ast)
-                                         (update ast :args #(mapv -ast->sugared-ast %)))]
+                                         (update :args #(mapv -ast->sugared-ast %)))]
    (cond
 
      (and (= target-class "clojure.lang.IFn")
