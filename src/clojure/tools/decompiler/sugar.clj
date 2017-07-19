@@ -67,6 +67,7 @@
   ast)
 
 (defmethod -ast->sugared-ast :array [ast]
+  ;; WIP sugar elements
   ast)
 
 (defmethod -ast->sugared-ast :local [ast]
