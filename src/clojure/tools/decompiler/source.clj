@@ -69,7 +69,11 @@
 
 (defmethod -ast->clj :fn-method [{:keys [args body]}]
   ;; wip meta, name
-  `(~(mapv (comp symbol :name) args) ~(-ast->clj body)))
+  (let [argv (mapv (comp symbol :name) args)
+        argv (if (= "clojure.lang.ISeq" (-> args last :type))
+               (into (pop argv) ['& (peek argv)])
+               argv)]
+    `(~argv ~(-ast->clj body))))
 
 (defmethod -ast->clj :static-field [{:keys [target field]}]
   (symbol target field))
