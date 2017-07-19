@@ -10,8 +10,8 @@
   (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility LocalVariable)
-           (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction
-                                    ConstantPoolGen LocalVariableInstruction TypedInstruction IndexedInstruction NEWARRAY Select)))
+           (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction MethodGen
+                                    ConstantPoolGen LocalVariableInstruction TypedInstruction IndexedInstruction CodeExceptionGen NEWARRAY Select)))
 
 ;; Implementaiton is limited to the set of bytecode produced by Clojure compiler as of version 1.9.0
 
@@ -128,29 +128,39 @@
 
 (defn parse-local-variable-table [local-variable-table]
   (for [^LocalVariable local-variable local-variable-table]
-    {:local-variable/name (.getName local-variable)
-     :local-variable/start-label (.getStartPC local-variable)
-     :local-variable/end-label (+ (.getStartPC local-variable)
-                                  (.getLength local-variable))
-     :local-variable/index (.getIndex local-variable)
-     :local-variable/type (Utility/signatureToString (.getSignature local-variable) false)}))
+    #:local-variable{:name (.getName local-variable)
+                     :start-label (.getStartPC local-variable)
+                     :end-label (+ (.getStartPC local-variable)
+                                   (.getLength local-variable))
+                     :index (.getIndex local-variable)
+                     :type (Utility/signatureToString (.getSignature local-variable) false)}))
+
+(defn parse-exception-table [^JavaClass klass ^Method method]
+  (let [cp-gen (ConstantPoolGen. (.getConstantPool klass))
+        ex-handlers (.getExceptionHandlers (MethodGen. method (.getClassName klass) cp-gen))]
+    (for [^CodeExceptionGen ex ex-handlers]
+      #:exception-handler{:type (.getClassName (.getCatchType ex))
+                          :start-label (.getPosition (.getStartPC ex))
+                          :end-label (.getPosition (.getEndPC ex))
+                          :handler-label (.getPosition (.getHandlerPC ex))})))
 
 (defn parse-method [^JavaClass klass ^Method method]
   (let [bytecode (parse-bytecode klass method)]
-    {:method/name (.getName method)
-     :method/flags (parse-flags method)
-     :method/return-type (-> method (.getReturnType) (str))
-     :method/arg-types (->> method (.getArgumentTypes) (mapv str))
-     :method/bytecode bytecode
-     :method/jump-table (into {} (for [i (range (count bytecode))
-                                       :let [{:keys [insn/label]} (nth bytecode i)]]
-                                   [label i]))
-     :method/local-variable-table (->>
-                                   (some-> method
-                                           (.getLocalVariableTable)
-                                           (.getLocalVariableTable)
-                                           (parse-local-variable-table))
-                                   (into #{}))}))
+    #:method{:name (.getName method)
+             :flags (parse-flags method)
+             :return-type (-> method (.getReturnType) (str))
+             :arg-types (->> method (.getArgumentTypes) (mapv str))
+             :bytecode bytecode
+             :jump-table (into {} (for [i (range (count bytecode))
+                                        :let [{:keys [insn/label]} (nth bytecode i)]]
+                                    [label i]))
+             :exception-table (into #{} (parse-exception-table klass method))
+             :local-variable-table (->>
+                                    (some-> method
+                                            (.getLocalVariableTable)
+                                            (.getLocalVariableTable)
+                                            (parse-local-variable-table))
+                                    (into #{}))}))
 
 (defn class-methods [^JavaClass klass]
   (->> klass
