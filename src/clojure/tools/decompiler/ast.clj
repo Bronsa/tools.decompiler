@@ -261,11 +261,12 @@
 (defn find-loop-info [{:keys [insns jump-table local-variable-table] :as ctx}
                       {:keys [start-label index end-label] :as insn}]
   (when-let [jump-label (find-recur-jump-label ctx insn)]
-    (let [insn (nth insns (get jump-table jump-label))]
-      {:loop-label (goto-label insn)
+    (let [insn (nth insns (get jump-table jump-label))
+          loop-label (goto-label insn)]
+      {:loop-label loop-label
        :loop-args (->> (for [local-variable local-variable-table
                              :when (and (= (:end-label local-variable) end-label)
-                                        (>= (:start-label local-variable) start-label))]
+                                        (>= loop-label (:start-label local-variable) start-label))]
                          local-variable)
                        (sort-by :start-label)
                        (into []))})))
