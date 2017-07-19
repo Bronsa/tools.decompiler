@@ -139,7 +139,7 @@
   (let [cp-gen (ConstantPoolGen. (.getConstantPool klass))
         ex-handlers (.getExceptionHandlers (MethodGen. method (.getClassName klass) cp-gen))]
     (for [^CodeExceptionGen ex ex-handlers]
-      #:exception-handler{:type (.getClassName (.getCatchType ex))
+      #:exception-handler{:type (some-> ex (.getCatchType) (.getClassName))
                           :start-label (.getPosition (.getStartPC ex))
                           :end-label (.getPosition (.getEndPC ex))
                           :handler-label (.getPosition (.getHandlerPC ex))})))
