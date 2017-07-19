@@ -23,9 +23,43 @@
                         :local-variable-table #{}
                         :exception-table #{}})
 
+(defn pc= [terminate-at]
+  (fn [{:keys [pc]}]
+    (= pc terminate-at)))
+
+(defn goto-label [{:insn/keys [jump-offset label]}]
+  (+ jump-offset label))
+
+(defn ->do [exprs]
+  (if (empty? (second exprs))
+    (first exprs)
+    {:op :do
+     :statements (vec (butlast exprs))
+     :ret (or (last exprs) {:op :const :val nil})}))
+
+(defn find-local-variable [{:keys [local-variable-table]} index label]
+  (->> local-variable-table
+       (filter (comp #{index} :index))
+       (filter (comp (partial >= label) :start-label))
+       (filter (comp (partial < label) :end-label))
+       (sort-by :start-label)
+       (first)))
+
+(defn find-init-local [{:keys [local-variable-table]} label]
+  (->> local-variable-table
+       (filter (comp (partial = label) :start-label))
+       ;; why is this here?
+       (filter (comp (partial < label) :end-label))
+       (sort-by :start-label)
+       (first)))
+
+(defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
+  (= (+ label length) start-label))
+
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
 
+(def process-insn nil)
 (defmulti process-insn
   (fn [ctx {:insn/keys [name]}] (keyword name))
   :hierarchy #'bc/insn-h)
@@ -103,22 +137,11 @@
         (update :stack conj {:op :monitor-exit
                              :sentinel sentinel}))))
 
-(defn ->do [exprs]
-  (if (empty? (second exprs))
-    (first exprs)
-    {:op :do
-     :statements (vec (butlast exprs))
-     :ret (or (last exprs) {:op :const :val nil})}))
-
 (defmethod process-insn ::bc/return-value [{:keys [stack statements] :as ctx} _]
   (let [ret (peek stack)]
     (-> ctx
         (assoc :stack [] :statements []
                :ast (->do (conj statements ret))))))
-
-(defn pc= [terminate-at]
-  (fn [{:keys [pc]}]
-    (= pc terminate-at)))
 
 (defn process-if [{:keys [insns jump-table stack] :as ctx} test [start-then end-then] [start-else end-else]]
   (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []) insns)
@@ -138,9 +161,6 @@
                       :test test
                       :then (->do then)
                       :else (->do else)}))))
-
-(defn goto-label [{:insn/keys [jump-offset label]}]
-  (+ jump-offset label))
 
 (defmethod process-insn :ifnull [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [null-label (goto-label insn)
@@ -200,22 +220,6 @@
         (update :stack pop-n 2)
         (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
-(defn find-local-variable [{:keys [local-variable-table]} index label]
-  (->> local-variable-table
-       (filter (comp #{index} :index))
-       (filter (comp (partial >= label) :start-label))
-       (filter (comp (partial < label) :end-label))
-       (sort-by :start-label)
-       (first)))
-
-(defn find-init-local [{:keys [local-variable-table]} label]
-  (->> local-variable-table
-       (filter (comp (partial = label) :start-label))
-       ;; why is this here?
-       (filter (comp (partial < label) :end-label))
-       (sort-by :start-label)
-       (first)))
-
 (defmethod process-insn :goto [{:keys [stack loop-args] :as ctx} insn]
   (let [jump-label (goto-label insn)
         args (for [{:keys [start-label index]} loop-args
@@ -233,9 +237,6 @@
       (-> ctx
           (update :stack conj {:op :local
                                :name (str "arg_" label)})))))
-
-(defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
-  (= (+ label length) start-label))
 
 (defn find-recur-jump-label [{:keys [jump-table pc insns] :as ctx} {:keys [start-label end-label index]}]
   (loop [[{:insn/keys [name length label local-variable-element] :as insn} & insns] (drop (inc (get jump-table pc)) insns)]
