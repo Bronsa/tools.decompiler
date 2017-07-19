@@ -312,15 +312,24 @@
 
       (and (= target "clojure.lang.Reflector")
            (= method "invokeInstanceMethod"))
+
       {:op :invoke-instance
        :target (first args)
        :args (deref (:!items (nth args 2)))
        :method (:val (second args))}
 
+      (and (= target "clojure.lang.Reflector")
+           (= method "invokeNoArgInstanceMember"))
+
+      {:op :invoke-instance
+       :target (first args)
+       :args []
+       :method (:val (second args))}
 
       (and (= target "clojure.lang.RT")
            (#{"vector" "set" "mapUniqueKeys" "map"} method)
            (= (-> args first :op) :array))
+
       {:op ({"vector" :vector "set" :set "mapUniqueKeys" :map "map" :map} method)
        :items (-> args first :!items deref)}
 
