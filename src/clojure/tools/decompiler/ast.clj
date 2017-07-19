@@ -20,7 +20,8 @@
 
 (def initial-local-ctx {:stack []
                         :pc 0
-                        :local-variable-table #{}})
+                        :local-variable-table #{}
+                        :exception-table #{}})
 
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
@@ -529,25 +530,32 @@
         (update :stack pop)
         (update :stack conj (assoc target :cast target-type)))))
 
-(defn merge-local-variable-table [ctx local-variable-table]
+(defn merge-tables [ctx local-variable-table exception-table]
   (let [lvt (->> (for [{:local-variable/keys [name index start-label end-label]} local-variable-table]
                    {:op :local
                     :start-label start-label
                     :end-label end-label
                     :index index
                     :name name})
-                 (into #{}))]
+                 (into #{}))
+        et (->> (for [{:exception-handler/keys [type start-label end-label handler-label]} exception-table]
+                  {:start-label start-label
+                   :end-label end-label
+                   :handler-label handler-label
+                   :type type})
+                (into #{}))]
     (-> ctx
         (assoc :local-variable-table lvt)
+        (assoc :exception-table et)
         (assoc :loop-args (->> lvt
                                (filter (comp zero? :start-label))
                                (sort-by :index)
                                (vec))))))
 
-(defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags]}]
+(defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags exception-table]}]
   (let [ctx (-> ctx
                 (merge initial-local-ctx {:jump-table jump-table})
-                (merge-local-variable-table local-variable-table)
+                (merge-tables local-variable-table exception-table)
                 (cond-> (not (:static flags))
                   (-> (update :local-variable-table conj {:op :local
                                                           :this? true
