@@ -607,9 +607,18 @@
      :fn-name fn-name
      :ast ast}))
 
-(defn bc->ast [{:class/keys [super] :as bc}]
-  (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
+(defn decompile-ns [bc ctx]
+  (throw (Exception. ":(")))
+
+(defn bc->ast [{:class/keys [super ^String name] :as bc}]
+  (cond
+    (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
     (decompile-fn bc initial-ctx)
+
+    (.endsWith name "__init")
+    (decompile-ns bc initial-ctx)
+
+    :else
     (throw (Exception. ":("))))
 
 (comment
@@ -625,5 +634,5 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
+;;; try/catch/finally/in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
 ;; WIP int -> booleans
