@@ -238,6 +238,14 @@
       {:op :const
        :val (e/read-string (-> args first :val))}
 
+      (and (= target "java.util.regex.Pattern")
+           (= method "compile")
+           (= 1 (count args))
+           (string? (-> args first :val)))
+
+      {:op :const
+       :val (-> args first :val re-pattern)}
+
       ;; WIP: this is too aggressive, might throw away useful casts
       (and (= target "clojure.lang.RT")
            (#{"doubleCast" "intCast" "box" "charCast" "booleanCast" "byteCast"
