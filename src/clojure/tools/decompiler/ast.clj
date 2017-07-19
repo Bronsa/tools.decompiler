@@ -68,19 +68,95 @@
   (println "INSN NOT HANDLED:" name)
   ctx)
 
-(defn process-insns [{:keys [stack pc jump-table terminate?] :as ctx :or {terminate? (constantly false)}} bc]
-  (if (or (not (get jump-table pc))
-          (terminate? ctx))
+(defn start-try-block-info [pc exception-table]
+  (seq (filter (comp #{pc} :start-label) exception-table)))
+
+(defn >process-insn [{:keys [pc] :as ctx} {:insn/keys [length] :as insn}]
+  (-> (process-insn ctx insn)
+      (update :pc (fn [new-pc]
+                    (if (= new-pc pc)
+                      ;; last insn wasn't an explicit jump, goto next insn
+                      (+ new-pc length)
+                      new-pc)))))
+
+(defn process-try-block [{:keys [pc exception-table jump-table terminate?] :as ctx} bc]
+  (let [handlers (start-try-block-info pc exception-table)
+
+        first-handler (->> handlers (sort-by (juxt :end-label :handler-label)) first)
+
+        body-end-label (:end-label first-handler)
+        ret-label (->> first-handler :handler-label
+                       (get jump-table) dec (nth bc) (goto-label)
+                       (get jump-table) inc (nth bc) :insn/label)
+
+        insn (nth bc (get jump-table pc))
+
+        ;; WIP: need to backup lvt?
+        body-ctx (-> ctx
+                     (assoc :statements [])
+                     (>process-insn insn)
+                     (assoc :terminate? (pc= body-end-label))
+                     (process-insns bc))
+
+        body (->do (conj (-> body-ctx :statements) (-> body-ctx :stack peek)))
+
+        next-insn (->> body-ctx :pc (get jump-table) (inc) (nth bc))
+
+        ?finally (when (seq (remove :type handlers))
+                   (let [start-label (:insn/label next-insn)
+                         end-label (->> first-handler :handler-label (get jump-table) dec (nth bc) :insn/label)
+                         finally-ctx (process-insns (-> ctx
+                                                        (assoc :pc start-label)
+                                                        (assoc :statements [])
+                                                        (assoc :terminate? (pc= end-label)))
+                                                    bc)]
+                     (->do (-> finally-ctx :statements))))
+
+        ?catches (when-let [catches (seq (filter :type handlers))]
+                   (->>
+                    (for [{:keys [handler-label type]} catches
+                          :let [{:keys [start-label end-label name] :as local} (find-init-local ctx handler-label)]]
+                      (let [end-label (->> end-label (get jump-table) dec (nth bc) :insn/label)
+                            catch-ctx (process-insns (-> ctx
+                                                         (assoc :pc start-label)
+                                                         (assoc :exception-table #{})
+                                                         (update :stack conj local)
+                                                         (assoc :statements [])
+                                                         (assoc :terminate? (pc= end-label)))
+                                                     bc)]
+                        {:op :catch
+                         :local {:name name
+                                 :type type}
+                         :body (->do (conj (-> catch-ctx :statements)
+                                           (-> catch-ctx :stack peek)))}))
+                    (into [])))
+
+        expr (if (or ?finally
+                     (seq ?catches))
+               {:op :try
+                :catches ?catches
+                :finally ?finally
+                :body body}
+               body)]
+
+    (-> ctx
+        (update :stack conj expr)
+        (assoc :pc ret-label))))
+
+(defn process-insns [{:keys [stack pc jump-table exception-table terminate?]
+                      :as ctx}
+                     bc]
+  (cond
+    (or (not (get jump-table pc))
+        (and terminate? (terminate? ctx)))
     ctx
-    (let [insn-n (get jump-table pc)
-          {:insn/keys [length] :as insn} (nth bc insn-n)]
-      (-> (process-insn ctx insn)
-          (update :pc (fn [new-pc]
-                        (if (= new-pc pc)
-                          ;; last insn wasn't an explicit jump, goto next insn
-                          (+ new-pc length)
-                          new-pc)))
-          (recur bc)))))
+
+    (start-try-block-info pc exception-table)
+    (recur (process-try-block ctx bc) bc)
+
+    :else
+    (let [insn (nth bc (get jump-table pc))]
+      (recur (>process-insn ctx insn) bc))))
 
 (defmethod process-insn ::bc/no-op [ctx _]
   ctx)
@@ -643,5 +719,5 @@
 
   )
 
-;;; try/catch/finally/in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
+;;; in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
 ;; WIP int -> booleans

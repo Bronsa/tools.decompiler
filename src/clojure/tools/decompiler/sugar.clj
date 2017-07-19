@@ -13,6 +13,18 @@
   (-> ast
       (update :init -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :try [{:keys [finally catches] :as ast}]
+  (-> ast
+      (update :body -ast->sugared-ast)
+      (cond-> finally
+        (update :finally -ast->sugared-ast))
+      (cond-> catches
+        (update :catches #(mapv -ast->sugared-ast %)))))
+
+(defmethod -ast->sugared-ast :catch [ast]
+  (-> ast
+      (update :body -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :let [ast]
   (-> ast
       (update :local-variable -ast->sugared-ast)

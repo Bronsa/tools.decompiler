@@ -94,10 +94,19 @@
 (defmethod -ast->clj :invoke [{:keys [fn args]}]
   `(~(-ast->clj fn) ~@(map -ast->clj args)))
 
+(defmethod -ast->clj :catch [{:keys [local body] :as x}]
+  `(catch ~(symbol (:type local)) ~(symbol (:name local)) ~(-ast->clj body)))
+
+(defmethod -ast->clj :try [{:keys [body catches finally]}]
+  `(try ~(-ast->clj body)
+        ~@(when catches
+            (mapv -ast->clj catches))
+        ~@(when finally
+            [`(finally ~(-ast->clj finally))])))
+
 (defn ast->clj [{:keys [ast] :as fast}]
   (-> fast
       (assoc :source (-ast->clj ast))))
-
 
 (comment
   (require '[clojure.tools.decompiler.bc :as bc]
