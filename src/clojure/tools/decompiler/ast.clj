@@ -430,7 +430,7 @@
       (recur exprs (:ret else))
       exprs)))
 
-(defmethod process-insn ::bc/select [{:keys [stack jump-table insns] :as ctx} {:insn/keys [jump-targets label]}]
+(defmethod process-insn ::bc/select [{:keys [stack pc jump-table insns] :as ctx} {:insn/keys [jump-targets label]}]
   (let [{:insn/keys [jump-offsets default-offset jump-matches]} jump-targets
 
         test (peek stack)
@@ -493,10 +493,48 @@
                                       peek)]
                          [[test expr]])
 
-                       ;; WIP numeric, scan backward, skip shift+mask, op = num.intValue == obj, else int || long
-                       ;; process forward, stop on icmp, if no stop -> direct, if pre = cast -> s+m, else long
                        :else
-                       (throw (Exception. ":("))))
+
+                       (if (or (= "invokevirtual" (->> pc (get jump-table) dec (nth insns) :insn/name))
+                               (and (= "invokevirtual" (->> pc (get jump-table) (+ -5) (nth insns) :insn/name))
+                                    (= "iand "(->> pc (get jump-table) dec (nth insns) :insn/name))))
+
+                         (let [{:keys [pc stack]} (-> ctx
+                                                      (assoc :pc label
+                                                             :statements []
+                                                             :terminate? (fn [{:keys [pc insns jump-table]}]
+                                                                           (= "invokestatic" (:insn/name (nth insns (get jump-table pc))))))
+                                                      (process-insns))
+                               test (peek stack)
+                               expr (-> ctx
+                                        (assoc :pc (-> (get jump-table pc) (+ 2) (nth insns) :insn/label)
+                                               :statements []
+                                               :terminate? (fn [{:keys [pc insns jump-table]}]
+                                                             (pc= end-label)))
+                                        (process-insns)
+                                        :stack
+                                        peek)]
+                           [[test expr]])
+
+                         (let [{:keys [pc stack]} (-> ctx
+                                                      (assoc :pc label
+                                                             :statements []
+                                                             :terminate? (fn [{:keys [pc insns jump-table]}]
+                                                                           (= "lcmp" (:insn/name (nth insns (get jump-table pc))))))
+                                                      (process-insns))]
+
+                           (if (= "lcmp" (:insn/name (nth insns (get jump-table pc))))
+                             (let [[test _] (peek-n stack 2)
+                                   expr (-> ctx
+                                            (assoc :pc (:insn/label (nth insns (inc (get jump-table pc))))
+                                                   :statements []
+                                                   :terminate? (pc= end-label))
+                                            (process-insns)
+                                            :stack
+                                            peek)]
+                               [[test expr]])
+
+                             [[match (peek stack)]])))))
 
                    (mapcat identity)
                    (into []))
