@@ -210,6 +210,8 @@
    "unsignedShiftRight" "unsigned-bit-shift-right"
    "xor" "bit-xor"})
 
+;; TODO: desugar lists
+
 (defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method arg-types] :as ast}]
   (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
 
@@ -330,6 +332,15 @@
 
       {:op :vector
        :items args}
+
+      (and (= target "clojure.lang.PersistentList")
+           (= method "create")
+           (= "java.util.Arrays" (-> args first :target))
+           (= "asList" (-> args first :method))
+           (= :array (-> args first :args first :op)))
+
+      {:op :list
+       :items (-> args first :args first :!items deref)}
 
       (and (= target "clojure.lang.Reflector")
            (= method "invokeInstanceMethod"))

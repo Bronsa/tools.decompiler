@@ -55,6 +55,9 @@
 (defmethod -ast->clj :vector [{:keys [items]}]
   (mapv -ast->clj items))
 
+(defmethod -ast->clj :list [{:keys [items]}]
+  `(list ~@(map -ast->clj items)))
+
 (defmethod -ast->clj :set [{:keys [items]}]
   (into #{} (map -ast->clj) items))
 
