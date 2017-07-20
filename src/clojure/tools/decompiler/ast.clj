@@ -422,6 +422,14 @@
     (process-loop ctx loop-info local-variable init)
     (process-let ctx local-variable init)))
 
+
+(defn parse-collision-expr [exprs {:keys [test then else]}]
+  (let [node [(-> test :args first) then]
+        exprs (conj exprs node)]
+    (if (= :if (-> else :ret :op))
+      (recur exprs (:ret else))
+      exprs)))
+
 (defmethod process-insn ::bc/select [{:keys [stack jump-table insns] :as ctx} {:insn/keys [jump-targets label]}]
   (let [{:insn/keys [jump-offsets default-offset jump-matches]} jump-targets
 
@@ -438,7 +446,59 @@
         test (cond-> test hash-test? (-> :args first))
 
         jump-labels (mapv (partial + label) jump-offsets)
+
         default-label (+ default-offset label)
+
+        ;; WIP: extract & refactor
+
+        exprs (->> (for [i (range (count jump-labels))
+                         :let [label (nth jump-labels i)
+                               match (nth jump-matches i)]
+                         :when (not= label default-label)
+                         :let [end-label (->> (nth (conj jump-labels default-label) (inc i))
+                                              (get jump-table)
+                                              dec
+                                              (nth insns)
+                                              :insn/label)]]
+                     (cond
+
+                       (= "getstatic" (->> label (get jump-table) (nth insns) :insn/name))
+                       (let [test (-> ctx
+                                      (assoc :pc label
+                                             :statements []
+                                             :terminate? (pc= end-label))
+                                      (process-insns)
+                                      :stack
+                                      peek)]
+                         (parse-collision-expr [] (-> test :body :ret :body :ret)))
+
+                       hash-test?
+                       (let [{:keys [pc stack]} (-> ctx
+                                                    (assoc :pc label
+                                                           :statements []
+                                                           :terminate? (fn [{:keys [pc insns jump-table]}]
+                                                                         (#{"if_acmpne" "invokestatic"}
+                                                                          (:insn/name (nth insns (get jump-table pc))))))
+                                                    (process-insns))
+                             test (peek stack)
+                             start-expr-label (if (= "if_acmpne" (:insn/name (nth insns (get jump-table pc))))
+                                                (:insn/label (nth insns (inc (get jump-table pc))))
+                                                (:insn/label (nth insns (+ 2 (get jump-table pc)))))
+                             expr (-> ctx
+                                      (assoc :pc start-expr-label
+                                             :statements []
+                                             :terminate? (pc= end-label))
+                                      (process-insns)
+                                      :stack
+                                      peek)]
+                         [[test expr]])
+
+                       ;; WIP numeric
+                       :else
+                       (throw (Exception. ":("))))
+
+                   (mapcat identity)
+                   (into []))
 
         end-label (->> default-label (get jump-table) (dec) (nth insns) (goto-label))
 
