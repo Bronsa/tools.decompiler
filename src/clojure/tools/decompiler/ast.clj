@@ -513,20 +513,27 @@
                              :val "wip"})
         (assoc :pc end-label))))
 
-;; WIP lookahead for bit+shift? + bc/select
+(defmethod process-insn :instanceof [{:keys [stack pc jump-table insns] :as ctx} {:insn/keys [pool-element]}]
 
-(defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-type]} pool-element
-        instance (peek stack)]
+  (if (or (isa? bc/insn-h (->> pc (get jump-table) (+ 5) (nth insns) :insn/name keyword) ::bc/select)
+          (and (isa? bc/insn-h (->> pc (get jump-table) (+ 9) (nth insns) :insn/name keyword) ::bc/select)
+               (= "isrh "(->> pc (get jump-table) (+ 6) (nth insns) :insn/name))))
+
     (-> ctx
-        (update :stack pop)
-        (update :stack conj {:op :invoke
-                             :fn {:op :var
-                                  :ns "clojure.core"
-                                  :name "instance?"}
-                             :args [{:op :const
-                                     :val (symbol target-type)}
-                                    instance]}))))
+        (assoc :pc (->> pc (get jump-table) (+ 5) (nth insns) :insn/label)))
+
+
+    (let [{:insn/keys [target-type]} pool-element
+          instance (peek stack)]
+      (-> ctx
+          (update :stack pop)
+          (update :stack conj {:op :invoke
+                               :fn {:op :var
+                                    :ns "clojure.core"
+                                    :name "instance?"}
+                               :args [{:op :const
+                                       :val (symbol target-type)}
+                                      instance]})))))
 
 (defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
   (let [statement (peek stack)
