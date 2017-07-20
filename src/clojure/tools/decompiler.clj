@@ -26,6 +26,12 @@
 
   (require '[clojure.java.io :as io])
 
+  (doseq [f (rest (file-seq (io/file "resources/")))
+          :when (.endsWith (str f) ".class")]
+    (println (str f))
+    (prn (classfile->source (str f)))
+    (println "\n"))
+
   (-> "test$baz.class"
       (io/resource)
       (.getFile)
