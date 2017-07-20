@@ -44,7 +44,7 @@
   `(~(symbol (str class ".")) ~@(map -ast->clj args)))
 
 (defmethod -ast->clj :instance-field [{:keys [instance field]}]
-  `((symbol (str ".-" field)) ~(-ast->clj instance)))
+  `(~(symbol (str ".-" field)) ~(-ast->clj instance)))
 
 (defmethod -ast->clj :local [{:keys [name]}]
   (symbol name))
@@ -94,7 +94,7 @@
 (defmethod -ast->clj :invoke [{:keys [fn args]}]
   `(~(-ast->clj fn) ~@(map -ast->clj args)))
 
-(defmethod -ast->clj :catch [{:keys [local body] :as x}]
+(defmethod -ast->clj :catch [{:keys [local body]}]
   `(catch ~(symbol (:type local)) ~(symbol (:name local)) ~(-ast->clj body)))
 
 (defmethod -ast->clj :try [{:keys [body catches finally]}]

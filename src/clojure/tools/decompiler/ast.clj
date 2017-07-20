@@ -61,7 +61,7 @@
 
 (def process-insn nil)
 (defmulti process-insn
-  (fn [ctx {:insn/keys [name]}] (keyword name))
+  (fn [_ {:insn/keys [name]}] (keyword name))
   :hierarchy #'bc/insn-h)
 
 (defmethod process-insn :default [ctx {:insn/keys [name]}]
@@ -81,7 +81,7 @@
 
 (declare process-insns)
 
-(defn process-try-block [{:keys [pc exception-table insns jump-table terminate?] :as ctx}]
+(defn process-try-block [{:keys [pc exception-table insns jump-table] :as ctx}]
   (let [handlers (->> (start-try-block-info pc exception-table)
                       (sort-by (comp - :end-label))
                       (partition-by :end-label)
@@ -147,7 +147,7 @@
         (update :stack conj expr)
         (assoc :pc ret-label))))
 
-(defn process-insns [{:keys [stack pc insns jump-table exception-table terminate?]
+(defn process-insns [{:keys [pc insns jump-table exception-table terminate?]
                       :as ctx}]
   (cond
     (or (not (get jump-table pc))
@@ -186,9 +186,8 @@
     (-> ctx
         (update :stack conj val))))
 
-(defmethod process-insn :anewarray [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-type]} pool-element
-        {dimension :val} (peek stack)
+(defmethod process-insn :anewarray [{:keys [stack] :as ctx} _]
+  (let [{dimension :val} (peek stack)
         expr {:op :array
               :!items (atom (vec (repeat dimension {:op :const :val nil})))}]
 
@@ -196,8 +195,8 @@
         (update :stack pop)
         (update :stack conj expr))))
 
-(defmethod process-insn ::bc/array-store [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [[{:keys [!items] :as array} {index :val} value] (peek-n stack 3)]
+(defmethod process-insn ::bc/array-store [{:keys [stack] :as ctx} _]
+  (let [[{:keys [!items]} {index :val} value] (peek-n stack 3)]
     (swap! !items assoc index value)
     (-> ctx
         (update :stack pop-n 3))))
@@ -222,7 +221,7 @@
         (assoc :stack [] :statements []
                :ast (->do (conj statements ret))))))
 
-(defn process-if [{:keys [insns jump-table stack] :as ctx} test [start-then end-then] [start-else end-else]]
+(defn process-if [{:keys [stack] :as ctx} test [start-then end-then] [start-else end-else]]
   (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []))
         {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate? (pc= end-else) :statements []))
 
@@ -299,9 +298,8 @@
         (update :stack pop-n 2)
         (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
-(defmethod process-insn :goto [{:keys [stack loop-args] :as ctx} insn]
-  (let [jump-label (goto-label insn)
-        args (for [{:keys [start-label index]} loop-args
+(defmethod process-insn :goto [{:keys [loop-args] :as ctx} _]
+  (let [args (for [{:keys [start-label index]} loop-args
                    :let [{:keys [init]} (find-local-variable ctx index start-label)]]
                init)]
     (-> ctx
@@ -337,7 +335,7 @@
       (recur insns))))
 
 (defn find-loop-info [{:keys [insns jump-table local-variable-table] :as ctx}
-                      {:keys [start-label index end-label] :as insn}]
+                      {:keys [start-label end-label] :as insn}]
   (when-let [jump-label (find-recur-jump-label ctx insn)]
     (let [insn (nth insns (get jump-table jump-label))
           loop-label (goto-label insn)]
@@ -349,16 +347,16 @@
                        (sort-by :start-label)
                        (into []))})))
 
-(defn process-loop [{:keys [insns stack jump-table pc] :as ctx} {:keys [loop-label loop-args]} {:keys [end-label] :as local-variable} init]
+(defn process-loop [{:keys [insns jump-table pc] :as ctx} {:keys [loop-label loop-args]} {:keys [end-label] :as local-variable} init]
   (let [{:insn/keys [length]} (nth insns (get jump-table pc))]
     (loop [[arg & loop-args] (rest loop-args)
            args-ctx (-> ctx (update :pc + length))
            args [{:op :local-variable :local-variable local-variable :init init}]]
       (if arg
         (let [pre-insn (nth insns (dec (get jump-table (:start-label arg)))) ;; astore
-              {:keys [local-variable-table statements stack] :as new-ctx} (process-insns (-> args-ctx
-                                                                                             (assoc :terminate? (pc= (:insn/label pre-insn)))
-                                                                                             (assoc :statements [])))
+              {:keys [statements stack] :as new-ctx} (process-insns (-> args-ctx
+                                                                        (assoc :terminate? (pc= (:insn/label pre-insn)))
+                                                                        (assoc :statements [])))
 
               local-variable (find-init-local new-ctx (:start-label arg))
               init (if (seq statements) (->do (conj statements (peek stack))) (peek stack))]
@@ -432,10 +430,9 @@
       (-> ctx
           (update :statements conj statement)))))
 
-(defmethod process-insn ::bc/store-insn [{:keys [stack insns jump-table] :as ctx}
-                                         {:insn/keys [local-variable-element label length] :as insn}]
+(defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element label length] :as insn}]
   (let [{:insn/keys [target-index]} local-variable-element
-        {:keys [start-label end-label] :as local-variable} (find-local-variable ctx target-index (+ label length))
+        local-variable (find-local-variable ctx target-index (+ label length))
         init (peek stack)
         initialized-local-variable (assoc local-variable :init init)
         ctx (-> ctx
@@ -495,7 +492,7 @@
                                              :field target-name}
                                     :val val})))))
 
-(defn process-keyword-invoke [{:keys [insns jump-table pc fields] :as ctx} {:insn/keys [length pool-element]}]
+(defn process-keyword-invoke [{:keys [insns jump-table pc fields] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-name]} pool-element
         {:keys [pc statements stack]} (process-insns (assoc ctx
                                                             :pc (->> (get jump-table pc) (+ 2) (nth insns) :insn/label)
@@ -529,18 +526,19 @@
                                :target target-class
                                :field target-name}))))
 
-(defmethod process-insn :putfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn :putfield [{:keys [class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
-        [instance val] (peek-n 2 stack)
-        ctx (update ctx :stack pop-n 2)]
-    (update :statements conj {:op :set!
-                              :target (if (= target-class class-name)
-                                        {:op :local
-                                         :name target-name}
-                                        {:op :instance-field
-                                         :instance instance
-                                         :field target-name})
-                              :val val})))
+        [instance val] (peek-n 2 stack)]
+    (-> ctx
+        (update ctx :stack pop-n 2)
+        (update :statements conj {:op :set!
+                                  :target (if (= target-class class-name)
+                                            {:op :local
+                                             :name target-name}
+                                            {:op :instance-field
+                                             :instance instance
+                                             :field target-name})
+                                  :val val}))))
 
 (defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
@@ -644,15 +642,15 @@
                 (process-insns))]
     (apply dissoc ctx :jump-table (keys initial-local-ctx))))
 
-(defn process-static-init [ctx {:class/keys [methods] :as bc}]
+(defn process-static-init [ctx {:class/keys [methods]}]
   (let [method (u/find-method methods {:method/name "<clinit>"})]
     (process-method-insns ctx method)))
 
-(defn process-init [ctx {:class/keys [methods] :as bc}]
+(defn process-init [ctx {:class/keys [methods]}]
   (let [method (u/find-method methods {:method/name "<init>"})]
     (process-method-insns ctx method)))
 
-(defn decompile-fn-method [ctx {:method/keys [return-type local-variable-table] :as method}]
+(defn decompile-fn-method [ctx {:method/keys [local-variable-table] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)
         args (for [{:local-variable/keys [name type start-label]} (->> local-variable-table
                                                                        (sort-by :local-variable/index))
@@ -664,7 +662,7 @@
      :args args
      :body ast}))
 
-(defn decompile-fn-methods [ctx {:class/keys [methods] :as bc}]
+(defn decompile-fn-methods [ctx {:class/keys [methods]}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
         invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
@@ -677,9 +675,7 @@
     {:op :fn
      :fn-methods methods-asts}))
 
-(defn decompile-fn [{class-name :class/name
-                     :class/keys [methods] :as bc}
-                    ctx]
+(defn decompile-fn [{class-name :class/name :as bc} ctx]
   (let [[ns fn-name] ((juxt namespace name) (u/demunge class-name))
         ast (-> ctx
                 (assoc :fn-name fn-name)
@@ -691,7 +687,7 @@
      :fn-name fn-name
      :ast ast}))
 
-(defn decompile-ns [bc ctx]
+(defn decompile-ns [_ _]
   (throw (Exception. ":(")))
 
 (defn bc->ast [{:class/keys [super ^String name] :as bc}]
