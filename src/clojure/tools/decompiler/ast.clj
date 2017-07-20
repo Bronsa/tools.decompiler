@@ -493,7 +493,8 @@
                                       peek)]
                          [[test expr]])
 
-                       ;; WIP numeric
+                       ;; WIP numeric, scan backward, skip shift+mask, op = num.intValue == obj, else int || long
+                       ;; process forward, stop on icmp, if no stop -> direct, if pre = cast -> s+m, else long
                        :else
                        (throw (Exception. ":("))))
 
