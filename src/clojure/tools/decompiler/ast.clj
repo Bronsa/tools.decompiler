@@ -422,6 +422,39 @@
     (process-loop ctx loop-info local-variable init)
     (process-let ctx local-variable init)))
 
+(defmethod process-insn ::bc/select [{:keys [stack jump-table insns] :as ctx} {:insn/keys [jump-targets label]}]
+  (let [{:insn/keys [jump-offsets default-offset jump-matches]} jump-targets
+
+        test (peek stack)
+
+        shift+mask? (= :invoke (:op test))
+        ?shift (when shift+mask?
+                 (-> test :args first :args second :val))
+        ?mask (when shift+mask?
+                (-> test :args second :val))
+        test (cond-> test shift+mask? (-> :args first :args first))
+
+        hash-test? (= :invoke-static (:op test))
+        test (cond-> test hash-test? (-> :args first))
+
+        jump-labels (mapv (partial + label) jump-offsets)
+        default-label (+ default-offset label)
+
+        end-label (->> default-label (get jump-table) (dec) (nth insns) (goto-label))
+
+        default-ctx (-> ctx
+                        (assoc :pc default-label
+                               :statements []
+                               :terminate? (pc= end-label))
+                        (process-insns))]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj {:op :const
+                             :val "wip"})
+        (assoc :pc end-label))))
+
+;; WIP lookahead for bit+shift? + bc/select
+
 (defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
         instance (peek stack)]
