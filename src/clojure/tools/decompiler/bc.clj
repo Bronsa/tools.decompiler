@@ -74,6 +74,7 @@
   (if (instance? Select insn)
     (let [^Select insn insn]
       {:insn/jump-targets {:insn/jump-offsets (vec (.getIndices insn))
+                           :insn/default-offset (.getIndex insn)
                            :insn/jump-matches (vec (.getMatchs insn))}})
     {:insn/jump-offset (.getIndex insn)}))
 
