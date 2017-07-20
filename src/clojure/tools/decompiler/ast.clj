@@ -302,14 +302,22 @@
         (update :stack pop-n 2)
         (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
-(defmethod process-insn :goto [{:keys [loop-args] :as ctx} {:insn/keys [jump-offset]}]
-  (if (neg? jump-offset)
+(defmethod process-insn :goto [{:keys [loop-args insns jump-table pc] :as ctx} {:insn/keys [jump-offset]}]
+  (cond
+
+    (neg? jump-offset)
     (let [args (for [{:keys [start-label index]} loop-args
                      :let [{:keys [init]} (find-local-variable ctx index start-label)]]
                  init)]
       (-> ctx
           (update :stack conj {:op :recur
                                :args (vec args)})))
+
+    (isa? bc/insn-h (->> pc (get jump-table) inc (nth insns) :insn/name keyword) ::bc/select)
+    (-> ctx
+        (update :pc + jump-offset))
+
+    :else
     (throw (Exception. ":("))))
 
 (defmethod process-insn ::bc/load-insn [{:keys [closed-overs] :as ctx} {:insn/keys [local-variable-element label]}]

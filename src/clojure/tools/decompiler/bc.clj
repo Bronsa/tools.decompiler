@@ -328,7 +328,10 @@
       (derive :i2f ::no-op)
       (derive :l2f ::no-op)
       (derive :l2i ::no-op)
-      (derive :l2d ::no-op)))
+      (derive :l2d ::no-op)
+
+      (derive :tableswitch ::select)
+      (derive :lookupswitch ::select)))
 
 (comment
   (require '[clojure.java.io :as io])
