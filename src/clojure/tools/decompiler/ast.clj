@@ -31,11 +31,9 @@
   (+ jump-offset label))
 
 (defn ->do [exprs]
-  (if (empty? (second exprs))
-    (first exprs)
-    {:op :do
-     :statements (vec (butlast exprs))
-     :ret (or (last exprs) {:op :const :val nil})}))
+  {:op :do
+   :statements (vec (butlast exprs))
+   :ret (or (last exprs) {:op :const :val nil})})
 
 (defn find-local-variable [{:keys [local-variable-table]} index label]
   (->> local-variable-table
@@ -222,8 +220,14 @@
                :ast (->do (conj statements ret))))))
 
 (defn process-if [{:keys [stack] :as ctx} test [start-then end-then] [start-else end-else]]
-  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []))
-        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate? (pc= end-else) :statements []))
+  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx
+                                                                          :pc start-then
+                                                                          :terminate? (pc= end-then)
+                                                                          :statements []))
+        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx
+                                                                          :pc start-else
+                                                                          :terminate? (pc= end-else)
+                                                                          :statements []))
 
         statement? (= stack then-stack else-stack)
 
