@@ -528,9 +528,9 @@
 
 (defmethod process-insn :putfield [{:keys [class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
-        [instance val] (peek-n 2 stack)]
+        [instance val] (peek-n stack 2)]
     (-> ctx
-        (update ctx :stack pop-n 2)
+        (update :stack pop-n 2)
         (update :statements conj {:op :set!
                                   :target (if (= target-class class-name)
                                             {:op :local
