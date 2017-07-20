@@ -59,7 +59,7 @@
   (into #{} (map -ast->clj) items))
 
 (defmethod -ast->clj :map [{:keys [items]}]
-  (into {} (map vec (partition 2 items))))
+  (into {} (map vec (partition 2 (map -ast->clj items)))))
 
 (defmethod -ast->clj :array [{:keys [!items]}]
   (object-array (mapv -ast->clj @!items)))
