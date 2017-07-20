@@ -82,21 +82,25 @@
 (declare process-insns)
 
 (defn process-try-block [{:keys [pc exception-table jump-table terminate?] :as ctx} bc]
-  (let [handlers (start-try-block-info pc exception-table)
+  (let [handlers (->> (start-try-block-info pc exception-table)
+                      (sort-by (comp - :end-label))
+                      (partition-by :end-label)
+                      (first))
 
-        first-handler (->> handlers (sort-by (juxt :end-label :handler-label)) first)
+        first-handler (->> handlers (sort-by :handler-label) first)
 
         body-end-label (:end-label first-handler)
+
         ret-label (->> first-handler :handler-label
                        (get jump-table) dec (nth bc) (goto-label)
                        (get jump-table) inc (nth bc) :insn/label)
 
-        insn (nth bc (get jump-table pc))
+        expr-ctx (-> ctx
+                     (update :exception-table #(apply disj % handlers)))
 
         ;; WIP: need to backup lvt?
-        body-ctx (-> ctx
+        body-ctx (-> expr-ctx
                      (assoc :statements [])
-                     (>process-insn insn)
                      (assoc :terminate? (pc= body-end-label))
                      (process-insns bc))
 
@@ -107,7 +111,7 @@
         ?finally (when (seq (remove :type handlers))
                    (let [start-label (:insn/label next-insn)
                          end-label (->> first-handler :handler-label (get jump-table) dec (nth bc) :insn/label)
-                         finally-ctx (process-insns (-> ctx
+                         finally-ctx (process-insns (-> expr-ctx
                                                         (assoc :pc start-label)
                                                         (assoc :statements [])
                                                         (assoc :terminate? (pc= end-label)))
@@ -119,7 +123,7 @@
                     (for [{:keys [handler-label type]} catches
                           :let [{:keys [start-label end-label name] :as local} (find-init-local ctx handler-label)]]
                       (let [end-label (->> end-label (get jump-table) dec (nth bc) :insn/label)
-                            catch-ctx (process-insns (-> ctx
+                            catch-ctx (process-insns (-> expr-ctx
                                                          (assoc :pc start-label)
                                                          (assoc :exception-table #{})
                                                          (update :stack conj local)
