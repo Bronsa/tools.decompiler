@@ -306,14 +306,16 @@
         (update :stack conj {:op :recur
                              :args (vec args)}))))
 
-(defmethod process-insn ::bc/load-insn [ctx {:insn/keys [local-variable-element label]}]
+(defmethod process-insn ::bc/load-insn [{:keys [closed-overs] :as ctx} {:insn/keys [local-variable-element label]}]
   (let [{:insn/keys [target-index]} local-variable-element]
     (if-let [local (find-local-variable ctx target-index label)]
       (-> ctx
           (update :stack conj local))
-      (-> ctx
-          (update :stack conj {:op :local
-                               :name (str "arg_" label)})))))
+      (if (contains? closed-overs target-index)
+        (-> ctx
+            (update :stack conj {:op :closed-over
+                                 :target target-index}))
+        (throw (Exception. ":("))))))
 
 (defn find-recur-jump-label [{:keys [jump-table pc insns] :as ctx} {:keys [start-label end-label index]}]
   (loop [[{:insn/keys [name length label local-variable-element] :as insn} & insns] (drop (inc (get jump-table pc)) insns)]
@@ -531,14 +533,15 @@
         [instance val] (peek-n stack 2)]
     (-> ctx
         (update :stack pop-n 2)
-        (update :statements conj {:op :set!
-                                  :target (if (= target-class class-name)
-                                            {:op :local
-                                             :name target-name}
-                                            {:op :instance-field
-                                             :instance instance
-                                             :field target-name})
-                                  :val val}))))
+        (cond-> (not= :closed-over (:op val))
+          (update :statements conj {:op :set!
+                                    :target (if (= target-class class-name)
+                                              {:op :local
+                                               :name target-name}
+                                              {:op :instance-field
+                                               :instance instance
+                                               :field target-name})
+                                    :val val})))))
 
 (defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
@@ -647,7 +650,10 @@
     (process-method-insns ctx method)))
 
 (defn process-init [ctx {:class/keys [methods]}]
-  (let [method (u/find-method methods {:method/name "<init>"})]
+  (let [method (u/find-method methods {:method/name "<init>"})
+        {:method/keys [arg-types]} method
+        ctx (-> ctx
+                (assoc :closed-overs (-> arg-types count inc range rest set)))]
     (process-method-insns ctx method)))
 
 (defn decompile-fn-method [ctx {:method/keys [local-variable-table] :as method}]
