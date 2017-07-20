@@ -81,7 +81,7 @@
 
 (declare process-insns)
 
-(defn process-try-block [{:keys [pc exception-table jump-table terminate?] :as ctx} bc]
+(defn process-try-block [{:keys [pc exception-table insns jump-table terminate?] :as ctx}]
   (let [handlers (->> (start-try-block-info pc exception-table)
                       (sort-by (comp - :end-label))
                       (partition-by :end-label)
@@ -92,8 +92,8 @@
         body-end-label (:end-label first-handler)
 
         ret-label (->> first-handler :handler-label
-                       (get jump-table) dec (nth bc) (goto-label)
-                       (get jump-table) inc (nth bc) :insn/label)
+                       (get jump-table) dec (nth insns) (goto-label)
+                       (get jump-table) inc (nth insns) :insn/label)
 
         expr-ctx (-> ctx
                      (update :exception-table #(apply disj % handlers)))
@@ -102,34 +102,32 @@
         body-ctx (-> expr-ctx
                      (assoc :statements [])
                      (assoc :terminate? (pc= body-end-label))
-                     (process-insns bc))
+                     (process-insns))
 
         body (->do (conj (-> body-ctx :statements) (-> body-ctx :stack peek)))
 
-        next-insn (->> body-ctx :pc (get jump-table) (inc) (nth bc))
+        next-insn (->> body-ctx :pc (get jump-table) (inc) (nth insns))
 
         ?finally (when (seq (remove :type handlers))
                    (let [start-label (:insn/label next-insn)
-                         end-label (->> first-handler :handler-label (get jump-table) dec (nth bc) :insn/label)
+                         end-label (->> first-handler :handler-label (get jump-table) dec (nth insns) :insn/label)
                          finally-ctx (process-insns (-> expr-ctx
                                                         (assoc :pc start-label)
                                                         (assoc :statements [])
-                                                        (assoc :terminate? (pc= end-label)))
-                                                    bc)]
+                                                        (assoc :terminate? (pc= end-label))))]
                      (->do (-> finally-ctx :statements))))
 
         ?catches (when-let [catches (seq (filter :type handlers))]
                    (->>
                     (for [{:keys [handler-label type]} catches
                           :let [{:keys [start-label end-label name] :as local} (find-init-local ctx handler-label)]]
-                      (let [end-label (->> end-label (get jump-table) dec (nth bc) :insn/label)
+                      (let [end-label (->> end-label (get jump-table) dec (nth insns) :insn/label)
                             catch-ctx (process-insns (-> expr-ctx
                                                          (assoc :pc start-label)
                                                          (assoc :exception-table #{})
                                                          (update :stack conj local)
                                                          (assoc :statements [])
-                                                         (assoc :terminate? (pc= end-label)))
-                                                     bc)]
+                                                         (assoc :terminate? (pc= end-label))))]
                         {:op :catch
                          :local {:name name
                                  :type type}
@@ -149,20 +147,19 @@
         (update :stack conj expr)
         (assoc :pc ret-label))))
 
-(defn process-insns [{:keys [stack pc jump-table exception-table terminate?]
-                      :as ctx}
-                     bc]
+(defn process-insns [{:keys [stack pc insns jump-table exception-table terminate?]
+                      :as ctx}]
   (cond
     (or (not (get jump-table pc))
         (and terminate? (terminate? ctx)))
     ctx
 
     (start-try-block-info pc exception-table)
-    (recur (process-try-block ctx bc) bc)
+    (recur (process-try-block ctx))
 
     :else
-    (let [insn (nth bc (get jump-table pc))]
-      (recur (>process-insn ctx insn) bc))))
+    (let [insn (nth insns (get jump-table pc))]
+      (recur (>process-insn ctx insn)))))
 
 (defmethod process-insn ::bc/no-op [ctx _]
   ctx)
@@ -226,8 +223,8 @@
                :ast (->do (conj statements ret))))))
 
 (defn process-if [{:keys [insns jump-table stack] :as ctx} test [start-then end-then] [start-else end-else]]
-  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []) insns)
-        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate? (pc= end-else) :statements []) insns)
+  (let [{then-stack :stack then-stmnts :statements} (process-insns (assoc ctx :pc start-then :terminate? (pc= end-then) :statements []))
+        {else-stack :stack else-stmnts :statements} (process-insns (assoc ctx :pc start-else :terminate? (pc= end-else) :statements []))
 
         statement? (= stack then-stack else-stack)
 
@@ -361,8 +358,7 @@
         (let [pre-insn (nth insns (dec (get jump-table (:start-label arg)))) ;; astore
               {:keys [local-variable-table statements stack] :as new-ctx} (process-insns (-> args-ctx
                                                                                              (assoc :terminate? (pc= (:insn/label pre-insn)))
-                                                                                             (assoc :statements []))
-                                                                                         insns)
+                                                                                             (assoc :statements [])))
 
               local-variable (find-init-local new-ctx (:start-label arg))
               init (if (seq statements) (->do (conj statements (peek stack))) (peek stack))]
@@ -378,8 +374,7 @@
                                                                              (assoc :pc loop-label)
                                                                              (assoc :loop-args (mapv :local-variable args))
                                                                              (assoc :terminate? (pc= end-label))
-                                                                             (assoc :statements []))
-                                                                         insns)
+                                                                             (assoc :statements [])))
               statement? (not= "areturn" (:insn/name (nth insns (get jump-table end-label))))
               ;; WIP if statement is peek body stack correct?
               body (->do (conj body-stmnts (peek body-stack)))]
@@ -395,8 +390,7 @@
         {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
                                                                        (update :pc + length)
                                                                        (assoc :terminate? (pc= end-label))
-                                                                       (assoc :statements []))
-                                                                   insns)
+                                                                       (assoc :statements [])))
         statement? (= stack body-stack)
         body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
     (-> ctx
@@ -510,8 +504,7 @@
                                                                                (nth insns)
                                                                                :insn/name
                                                                                (= "dup_x2")))
-                                                            :statements [])
-                                                     insns)
+                                                            :statements []))
         target (->do (conj statements (peek stack)))]
     (-> ctx
         (assoc :pc (+ pc 36)) ;; why bother writing robust code when we can just hardcode bytecode offsets
@@ -648,7 +641,7 @@
                                                           :end-label (-> bytecode last :insn/label)})
                       (update :loop-args #(vec (rest %)))))
                 (assoc :insns bytecode)
-                (process-insns bytecode))]
+                (process-insns))]
     (apply dissoc ctx :jump-table (keys initial-local-ctx))))
 
 (defn process-static-init [ctx {:class/keys [methods] :as bc}]
