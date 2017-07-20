@@ -656,13 +656,16 @@
                 (assoc :closed-overs (-> arg-types count inc range rest set)))]
     (process-method-insns ctx method)))
 
-(defn decompile-fn-method [ctx {:method/keys [local-variable-table] :as method}]
+(defn decompile-fn-method [ctx {:method/keys [local-variable-table flags] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)
-        args (for [{:local-variable/keys [name type start-label]} (->> local-variable-table
-                                                                       (sort-by :local-variable/index))
-                   :when (= start-label 0)]
+        args (for [{:local-variable/keys [index name type start-label]} (->> local-variable-table
+                                                                             (sort-by :local-variable/index))
+                   :when (and (zero? start-label)
+                              (or (:static flags)
+                                  (not (zero? index))))]
                {:name name
                 :type type})]
+
     {:op :fn-method
      :var-args? (-> args last :type (= "clojure.lang.ISeq"))
      :args args
