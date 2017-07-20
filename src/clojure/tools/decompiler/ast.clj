@@ -79,6 +79,8 @@
                       (+ new-pc length)
                       new-pc)))))
 
+(declare process-insns)
+
 (defn process-try-block [{:keys [pc exception-table jump-table terminate?] :as ctx} bc]
   (let [handlers (start-try-block-info pc exception-table)
 
