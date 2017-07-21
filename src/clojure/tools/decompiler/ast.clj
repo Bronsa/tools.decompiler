@@ -449,15 +449,17 @@
 
         default-label (+ default-offset label)
 
-        ;; WIP: extract & refactor
+
         label-match (for [i (range (count jump-labels))
                           :let [label (nth jump-labels i)
                                 match (nth jump-matches i)]
                           :when (not= label default-label)]
                       [label match])
 
+        ;; WIP: extract & refactor
         exprs (->> (for [i (range (count label-match))
                          :let [[label match] (nth label-match i)
+                               ;; WIP horribly inefficient
                                end-label (->> (nth (conj (mapv first label-match) default-label) (inc i))
                                               (get jump-table)
                                               dec
@@ -488,6 +490,7 @@
                              start-expr-label (if (= "if_acmpne" (:insn/name (nth insns (get jump-table pc))))
                                                 (:insn/label (nth insns (inc (get jump-table pc))))
                                                 (:insn/label (nth insns (+ 2 (get jump-table pc)))))
+                             ;; WIP statements
                              expr (-> ctx
                                       (assoc :pc start-expr-label
                                              :statements []
@@ -510,6 +513,8 @@
                                                                            (= "invokestatic" (:insn/name (nth insns (get jump-table pc))))))
                                                       (process-insns))
                                test (peek stack)
+
+                               ;; WIP statements
                                expr (-> ctx
                                         (assoc :pc (->> (get jump-table pc)
                                                         (+ 2)
@@ -531,6 +536,7 @@
 
                            (if (= "lcmp" (:insn/name (nth insns (get jump-table pc))))
                              (let [[test _] (peek-n stack 2)
+                                   ;; WIP statements
                                    expr (-> ctx
                                             (assoc :pc (:insn/label (nth insns (+ 2 (get jump-table pc))))
                                                    :statements []
@@ -552,6 +558,8 @@
                                :statements []
                                :terminate? (pc= end-label))
                         (process-insns))]
+    ;; test, default-ctx, exprs = [[test expr] ..]
+
     (-> ctx
         (update :stack pop)
         (update :stack conj {:op :const
