@@ -368,6 +368,7 @@
            (= (:insn/target-index local-variable-element) index)
            (= (:start-label (find-local-variable ctx index label)) start-label)
            (= "goto" (:insn/name (first insns)))
+           (neg? (:insn/jump-offset (first insns)))
            (< (goto-label (first insns)) end-label))
       (+ label length)
 
