@@ -10,6 +10,7 @@
   (:require [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.ast :as ast]
             [clojure.tools.decompiler.sugar :as sa]
+            [clojure.tools.decompiler.link :as l]
             [clojure.tools.decompiler.source :as src]
             [clojure.tools.decompiler.compact :as cmp]))
 
@@ -18,6 +19,7 @@
       (bc/analyze-classfile)
       (ast/bc->ast)
       (sa/ast->sugared-ast)
+      (l/link)
       (src/ast->clj)
       (cmp/macrocompact)
       :source))

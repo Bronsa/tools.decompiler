@@ -737,5 +737,5 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
+;;; def/letfn/deftype/reify, genclass, geninterface, proxy, protocol inline caches
 ;; WIP int -> booleans
