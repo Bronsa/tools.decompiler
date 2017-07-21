@@ -528,7 +528,7 @@
                            (if (= "lcmp" (:insn/name (nth insns (get jump-table pc))))
                              (let [[test _] (peek-n stack 2)
                                    expr (-> ctx
-                                            (assoc :pc (:insn/label (nth insns (inc (get jump-table pc))))
+                                            (assoc :pc (:insn/label (nth insns (+ 2 (get jump-table pc))))
                                                    :statements []
                                                    :terminate? (pc= end-label))
                                             (process-insns)
