@@ -473,11 +473,12 @@
         default-label (+ default-offset label)
 
 
-        label-match (for [i (range (count jump-labels))
-                          :let [label (nth jump-labels i)
-                                match (nth jump-matches i)]
-                          :when (not= label default-label)]
-                      [label match])
+        label-match (->> (for [i (range (count jump-labels))
+                               :let [label (nth jump-labels i)
+                                     match (nth jump-matches i)]
+                               :when (not= label default-label)]
+                           [label match])
+                         (into []))
 
         ;; WIP: extract & refactor
         exprs (->> (for [i (range (count label-match))
