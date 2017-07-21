@@ -577,11 +577,12 @@
               :default default-expr
               :type (if (= "lookuptable" (:insn/name insn)) :sparse :compact)
               :switch-type (if hash-test? (if (every? (comp #{:hash-identity} first) exprs) :hash-identity :hash-equiv) :int)
-              :skip-check (when hash-test? (->> (for [i (count (range exprs))
-                                                      :let [[type] (nth exprs i)]
-                                                      :when (= :collision type)]
-                                                  i)
-                                                (into #{})))
+              :skip-check (when hash-test?
+                            (->> (for [i (range (count exprs))
+                                       :let [[type] (nth exprs i)]
+                                       :when (= :collision type)]
+                                   i)
+                                 (into #{})))
               :exprs exprs}]
 
     (-> ctx
