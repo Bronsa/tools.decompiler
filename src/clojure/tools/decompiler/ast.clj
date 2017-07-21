@@ -453,7 +453,7 @@
       (recur exprs (:ret else))
       exprs)))
 
-(defmethod process-insn ::bc/select [{:keys [stack] :as ctx} {:insn/keys [jump-targets label]}]
+(defmethod process-insn ::bc/select [{:keys [stack] :as ctx} {:insn/keys [jump-targets label] :as insn}]
   (let [{:insn/keys [jump-offsets default-offset jump-matches]} jump-targets
 
         test (peek stack)
@@ -493,8 +493,9 @@
                                              :statements []
                                              :terminate? (pc= end-label))
                                       (process-insns)
-                                      (expr+statements))]
-                         (parse-collision-expr [] (-> test :body :ret :body :ret)))
+                                      (expr+statements))
+                             exprs (-> test :body :ret :body :ret)]
+                         [:collison match (parse-collision-expr [] exprs) exprs])
 
                        hash-test?
                        (let [{:keys [stack] :as test-ctx} (-> ctx
@@ -505,7 +506,8 @@
                                                                                     (:insn/name (curr-insn ctx)))))
                                                               (process-insns))
                              test (peek stack)
-                             start-expr-label (if (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
+                             hash-identity? (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
+                             start-expr-label (if hash-identity?
                                                 (:insn/label (insn-at test-ctx {:offset 1}))
                                                 (:insn/label (insn-at test-ctx {:offset 2})))
                              expr (-> ctx
@@ -514,7 +516,7 @@
                                              :terminate? (pc= end-label))
                                       (process-insns)
                                       (expr+statements))]
-                         [[test expr]])
+                         [(if hash-identity? :hash-identity :hash-equiv) match test expr])
 
                        :else
 
@@ -536,7 +538,7 @@
                                                :terminate? (pc= end-label))
                                         (process-insns)
                                         (expr+statements))]
-                           [[test expr]])
+                           [:int match test expr])
 
                          (let [{:keys [stack] :as test-ctx} (-> ctx
                                                                 (assoc :pc label
@@ -553,26 +555,36 @@
                                                    :terminate? (pc= end-label))
                                             (process-insns)
                                             (expr+statements))]
-                               [[test expr]])
+                               [:int match test expr])
 
-                             [[match (peek stack)]])))))
+                             [:int match match (peek stack)])))))
 
-                   (mapcat identity)
                    (into []))
 
         end-label (-> (insn-at ctx {:label default-label :offset -1}) (goto-label))
 
-        default-ctx (-> ctx
-                        (assoc :pc default-label
-                               :statements []
-                               :terminate? (pc= end-label))
-                        (process-insns))]
-    ;; ?shift, ?mask, test, default-ctx, exprs = [[test expr] ..]
+        default-expr (-> ctx
+                         (assoc :pc default-label
+                                :statements []
+                                :terminate? (pc= end-label))
+                         (process-insns)
+                         (expr+statements))]
 
     (-> ctx
         (update :stack pop)
-        (update :stack conj {:op :const
-                             :val "wip"})
+        (update :stack conj {:op :case
+                             :shift (or ?shift 0)
+                             :mask (or ?mask 0)
+                             :defaut default-expr
+                             :type (if (= "lookuptable" (:insn/name insn)) :compact :sparse)
+                             ;; WIP
+                             :switch-type (if hash-test? (if (every? (comp #{:hash-identity} first) exprs) :hash-identity :hash-equiv) :int)
+                             :skip-check (when hash-test? (->> (for [i (count (range exprs))
+                                                                     :let [[type] (nth exprs i)]
+                                                                     :when (= :collision type)]
+                                                                 i)
+                                                               (into #{})))
+                             :exprs exprs})
         (assoc :pc end-label))))
 
 (defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
