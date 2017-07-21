@@ -443,6 +443,30 @@
     (process-let ctx local-variable init)))
 
 
+(defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
+  (let [statement (peek stack)
+        ctx (-> ctx (update :stack pop))]
+    (if-let [local-variable (find-init-local ctx (+ label length))]
+      (-> ctx
+          (update :local-variable-table disj local-variable)
+          (update :local-variable-table conj (assoc local-variable :init statement))
+          (process-lexical-block local-variable statement))
+      (-> ctx
+          (update :statements conj statement)))))
+
+(defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element label length] :as insn}]
+  (let [{:insn/keys [target-index]} local-variable-element
+        local-variable (find-local-variable ctx target-index (+ label length))
+        init (peek stack)
+        initialized-local-variable (assoc local-variable :init init)
+        ctx (-> ctx
+                (update :stack pop)
+                (update :local-variable-table disj local-variable)
+                (update :local-variable-table conj initialized-local-variable))]
+    (if (init-local-variable? insn local-variable)
+      (process-lexical-block ctx local-variable init)
+      ctx)))
+
 (defn parse-collision-expr [exprs {:keys [test then else]}]
   (let [node [(-> test :args first) then]
         exprs (conj exprs node)]
@@ -608,30 +632,6 @@
                                :args [{:op :const
                                        :val (symbol target-type)}
                                       instance]})))))
-
-(defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
-  (let [statement (peek stack)
-        ctx (-> ctx (update :stack pop))]
-    (if-let [local-variable (find-init-local ctx (+ label length))]
-      (-> ctx
-          (update :local-variable-table disj local-variable)
-          (update :local-variable-table conj (assoc local-variable :init statement))
-          (process-lexical-block local-variable statement))
-      (-> ctx
-          (update :statements conj statement)))))
-
-(defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element label length] :as insn}]
-  (let [{:insn/keys [target-index]} local-variable-element
-        local-variable (find-local-variable ctx target-index (+ label length))
-        init (peek stack)
-        initialized-local-variable (assoc local-variable :init init)
-        ctx (-> ctx
-                (update :stack pop)
-                (update :local-variable-table disj local-variable)
-                (update :local-variable-table conj initialized-local-variable))]
-    (if (init-local-variable? insn local-variable)
-      (process-lexical-block ctx local-variable init)
-      ctx)))
 
 ;; WIP new on :new rather than invokespecial
 (defmethod process-insn :new [ctx _]
