@@ -660,17 +660,18 @@
 
 
 (defmethod process-insn ::bc/invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-class target-name target-arg-types]} pool-element
+  (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))
         [target & args] (peek-n stack argc)]
     (-> ctx
         (update :stack pop-n argc)
-        (update :stack conj {:op :invoke-instance
-                             :method target-name
-                             :target target
-                             :arg-types target-arg-types
-                             :target-class target-class
-                             :args args}))))
+        (update (if (= "void" target-ret-type) :statements :stack)
+                conj {:op :invoke-instance
+                      :method target-name
+                      :target target
+                      :arg-types target-arg-types
+                      :target-class target-class
+                      :args args}))))
 
 (defmethod process-insn :putstatic [{:keys [stack class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
@@ -745,16 +746,17 @@
                                :field target-name}))))
 
 (defmethod process-insn :invokestatic [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
-  (let [{:insn/keys [target-class target-name target-arg-types]} pool-element
+  (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
         argc (count target-arg-types)
         args (peek-n stack argc)]
     (-> ctx
         (update :stack pop-n argc)
-        (update :stack conj {:op :invoke-static
-                             :target target-class
-                             :method target-name
-                             :arg-types target-arg-types
-                             :args args}))))
+        (update (if (= "void" target-ret-type) :statements :stack)
+                conj {:op :invoke-static
+                      :target target-class
+                      :method target-name
+                      :arg-types target-arg-types
+                      :args args}))))
 
 (defmethod process-insn ::bc/math-insn [{:keys [stack] :as ctx} {:insn/keys [name]}]
   (let [argc (if (#{"dneg" "lneg"} name) 1 2)
