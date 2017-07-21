@@ -51,8 +51,8 @@
 (defmethod ast->clj :if [{:keys [test then else]}]
   `(if ~@(map ast->clj [test then else])))
 
-(defmethod ast->clj :set! [{:keys [target field]}]
-  `(set! ~(ast->clj target) ~(ast->clj field)))
+(defmethod ast->clj :set! [{:keys [target val]}]
+  `(set! ~(ast->clj target) ~(ast->clj val)))
 
 (defmethod ast->clj :throw [{:keys [ex]}]
   `(throw ~(ast->clj ex)))
