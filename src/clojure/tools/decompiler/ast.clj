@@ -496,7 +496,7 @@
                                       (process-insns)
                                       (expr+statements))
                              exprs (-> test :body :ret :body :ret)]
-                         [:collison match (parse-collision-expr [] exprs) exprs])
+                         [:collision match (parse-collision-expr [] exprs) test])
 
                        hash-test?
                        (let [{:keys [stack] :as test-ctx} (-> ctx
