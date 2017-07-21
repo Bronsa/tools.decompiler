@@ -342,15 +342,26 @@
     (-> ctx
         (update :pc + jump-offset))))
 
+(defn skip-locals-clearing [ctx]
+  (if (and (= "aconst_null" (:insn/name (insn-at ctx {:offset 1})))
+           (isa? bc/insn-h (-> (insn-at ctx {:offset 2}) :insn/name keyword) ::bc/store-insn)
+           (= (-> (curr-insn ctx) :insn/local-variable-element :insn/target-index)
+              (-> (insn-at ctx {:offset 2}) :insn/local-variable-element :insn/target-index)))
+    (-> ctx
+        (assoc :pc (:insn/label (insn-at ctx {:offset 3}))))
+    ctx))
+
 (defmethod process-insn ::bc/load-insn [{:keys [closed-overs] :as ctx} {:insn/keys [local-variable-element label]}]
   (let [{:insn/keys [target-index]} local-variable-element]
     (if-let [local (find-local-variable ctx target-index label)]
       (-> ctx
-          (update :stack conj local))
+          (update :stack conj local)
+          (skip-locals-clearing))
       (if (contains? closed-overs target-index)
         (-> ctx
             (update :stack conj {:op :closed-over
-                                 :target target-index}))
+                                 :target target-index})
+            (skip-locals-clearing))
         (throw (Exception. ":("))))))
 
 (defn find-recur-jump-label [{:keys [jump-table pc insns] :as ctx} {:keys [start-label end-label index]}]
@@ -496,8 +507,7 @@
                                                     :init init})
                                                  init-local-variables)
                           :body body})))
-      (-> ctx
-          (update :stack pop)))))
+      (throw (Exception. ":(")))))
 
 (defn process-lexical-block [ctx local-variable init]
   (if-let [loop-info (find-loop-info ctx local-variable)]
