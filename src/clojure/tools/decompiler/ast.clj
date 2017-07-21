@@ -959,7 +959,7 @@
      :args args
      :body ast}))
 
-(defn decompile-fn-methods [ctx {:class/keys [methods]}]
+(defn decompile-fn-methods [{:keys [fn-name] :as ctx} {:class/keys [methods]}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
         invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
@@ -970,11 +970,16 @@
                                               invoke))
         methods-asts (mapv (partial decompile-fn-method ctx) invoke-methods)]
     {:op :fn
+     :name fn-name
      :fn-methods methods-asts}))
+
+(defn extract-fn-name [^String cname]
+  (let [fname (subs cname (inc (.lastIndexOf cname "$")))]
+    (or (second (re-matches #"(.+)__[0-9]+$" fname)) fname)))
 
 (defn decompile-fn [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
   (let [ast (-> ctx
-                (assoc :fn-name (or fn-name (name (u/demunge class-name))))
+                (assoc :fn-name (or fn-name (extract-fn-name class-name)))
                 (assoc :class-name class-name)
                 (process-static-init bc)
                 (process-init bc)

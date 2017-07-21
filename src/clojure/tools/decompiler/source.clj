@@ -84,9 +84,9 @@
 (defmethod ast->clj :array [{:keys [!items]}]
   (object-array (mapv ast->clj @!items)))
 
-(defmethod ast->clj :fn [{:keys [fn-methods]}]
+(defmethod ast->clj :fn [{:keys [fn-methods name]}]
   ;; wip meta, fn name
-  `(fn* ~@(map ast->clj fn-methods)))
+  `(fn* ~(symbol name) ~@(map ast->clj fn-methods)))
 
 (defmethod ast->clj :fn-method [{:keys [args body var-args?]}]
   ;; wip tags
