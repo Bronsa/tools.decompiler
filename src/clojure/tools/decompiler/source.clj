@@ -13,6 +13,16 @@
 (defmethod -ast->clj :const [{:keys [val]}]
   val)
 
+(defmethod -ast->clj :case [{:keys [shift mask default type switch-type skip-check exprs]}]
+  `(case* ~(-ast->clj test)
+          ~shift ~mask ~(-ast->clj default)
+          ~(-> (for [[type match test expr] exprs]
+                 (if (= :collision type)
+                   [match [match expr]]
+                   [match [test expr]]))
+               (into (sorted-map)))
+          ~type ~switch-type ~@(when skip-check [skip-check])))
+
 (defmethod -ast->clj :monitor-enter [{:keys [sentinel]}]
   `(monitor-enter ~(-ast->clj sentinel)))
 

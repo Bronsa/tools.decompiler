@@ -569,23 +569,24 @@
                                 :statements []
                                 :terminate? (pc= end-label))
                          (process-insns)
-                         (expr+statements))]
+                         (expr+statements))
+        expr {:op :case
+              :test test
+              :shift (or ?shift 0)
+              :mask (or ?mask 0)
+              :default default-expr
+              :type (if (= "lookuptable" (:insn/name insn)) :sparse :compact)
+              :switch-type (if hash-test? (if (every? (comp #{:hash-identity} first) exprs) :hash-identity :hash-equiv) :int)
+              :skip-check (when hash-test? (->> (for [i (count (range exprs))
+                                                      :let [[type] (nth exprs i)]
+                                                      :when (= :collision type)]
+                                                  i)
+                                                (into #{})))
+              :exprs exprs}]
 
     (-> ctx
         (update :stack pop)
-        (update :stack conj {:op :case
-                             :shift (or ?shift 0)
-                             :mask (or ?mask 0)
-                             :defaut default-expr
-                             :type (if (= "lookuptable" (:insn/name insn)) :compact :sparse)
-                             ;; WIP
-                             :switch-type (if hash-test? (if (every? (comp #{:hash-identity} first) exprs) :hash-identity :hash-equiv) :int)
-                             :skip-check (when hash-test? (->> (for [i (count (range exprs))
-                                                                     :let [[type] (nth exprs i)]
-                                                                     :when (= :collision type)]
-                                                                 i)
-                                                               (into #{})))
-                             :exprs exprs})
+        (update :stack conj expr)
         (assoc :pc end-label))))
 
 (defmethod process-insn :instanceof [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]

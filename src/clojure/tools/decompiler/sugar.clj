@@ -9,6 +9,14 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :case [ast]
+  (-> ast
+      (update :test -ast->sugared-ast)
+      (update :default -ast->sugared-ast)
+      (update :exprs #(mapv (fn [[type match test expr]]
+                              [type match (-ast->sugared-ast test) (-ast->sugared-ast expr)])
+                            %))))
+
 (defmethod -ast->sugared-ast :local-variable [ast]
   (-> ast
       (update :init -ast->sugared-ast)))
