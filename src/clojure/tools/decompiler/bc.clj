@@ -127,9 +127,12 @@
        (mapv (partial parse-insn klass))
        (reduce add-labels [])))
 
+(defn fixup-name [name]
+  (or (second (re-matches #"(.*__auto__)[0-9]+$" name)) name))
+
 (defn parse-local-variable-table [local-variable-table]
   (for [^LocalVariable local-variable local-variable-table]
-    #:local-variable{:name (.getName local-variable)
+    #:local-variable{:name (fixup-name (.getName local-variable))
                      :start-label (.getStartPC local-variable)
                      :end-label (+ (.getStartPC local-variable)
                                    (.getLength local-variable))
