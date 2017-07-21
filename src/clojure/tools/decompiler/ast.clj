@@ -496,7 +496,8 @@
                                                     :init init})
                                                  init-local-variables)
                           :body body})))
-      (throw (Exception. ":(")))))
+      (-> ctx
+          (update :stack pop)))))
 
 (defn process-lexical-block [ctx local-variable init]
   (if-let [loop-info (find-loop-info ctx local-variable)]
@@ -698,15 +699,17 @@
 (defmethod process-insn :new [ctx _]
   ctx)
 
-(defmethod process-insn :invokespecial [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn :invokespecial [{:keys [stack bc-for] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
         argc (count target-arg-types)
         args (peek-n stack argc)]
     (-> ctx
         (update :stack pop-n (inc argc))
-        (update :stack conj {:op :new
-                             :class target-class
-                             :args args}))))
+        (update :stack conj (if-let [bc (bc-for target-class)]
+                              (bc->ast bc {:bc-for bc-for})
+                              {:op :new
+                               :class target-class
+                               :args args})))))
 
 (defmethod process-insn :athrow [{:keys [stack] :as ctx} _]
   (let [ex (peek stack)]

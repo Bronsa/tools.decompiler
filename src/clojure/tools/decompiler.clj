@@ -19,10 +19,10 @@
       (bc/analyze-classfile)
       (ast/bc->ast {:bc-for (fn [cname]
                               ;; WIP
-                              (-> (str cname ".class")
-                                  (io/resource)
-                                  (.getFile)
-                                  (bc/analyze-classfile)))})
+                              (some-> (str cname ".class")
+                                      (io/resource)
+                                      (.getFile)
+                                      (bc/analyze-classfile)))})
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)))
