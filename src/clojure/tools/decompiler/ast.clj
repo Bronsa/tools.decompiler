@@ -450,16 +450,20 @@
         default-label (+ default-offset label)
 
         ;; WIP: extract & refactor
+        label-match (for [i (range (count jump-labels))
+                          :let [label (nth jump-labels i)
+                                match (nth jump-matches i)]
+                          :when (not= label default-label)]
+                      [label match])
 
-        exprs (->> (for [i (range (count jump-labels))
-                         :let [label (nth jump-labels i)
-                               match (nth jump-matches i)]
-                         :when (not= label default-label)
-                         :let [end-label (->> (nth (conj jump-labels default-label) (inc i))
+        exprs (->> (for [i (range (count label-match))
+                         :let [[label match] (nth label-match i)
+                               end-label (->> (nth (conj (mapv first label-match) default-label) (inc i))
                                               (get jump-table)
                                               dec
                                               (nth insns)
                                               :insn/label)]]
+
                      (cond
 
                        (= "getstatic" (->> label (get jump-table) (nth insns) :insn/name))
