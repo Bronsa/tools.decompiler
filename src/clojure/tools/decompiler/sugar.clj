@@ -9,6 +9,14 @@
 (defmethod -ast->sugared-ast :const [ast]
   ast)
 
+(defmethod -ast->sugared-ast :case [ast]
+  (-> ast
+      (update :test -ast->sugared-ast)
+      (update :default -ast->sugared-ast)
+      (update :exprs #(mapv (fn [[type match test expr]]
+                              [type match (if (= :collision type) test (-ast->sugared-ast test)) (-ast->sugared-ast expr)])
+                            %))))
+
 (defmethod -ast->sugared-ast :local-variable [ast]
   (-> ast
       (update :init -ast->sugared-ast)))
@@ -295,9 +303,10 @@
        :val (list 'quote (symbol (:val (first args)) (:val (second args))))}
 
       (and (= method "valueOf")
-           (#{"java.lang.Long" "java.lang.Double"} target)
+           (#{"java.lang.Long" "java.lang.Double" "java.lang.Integer" "java.lang.Byte" "java.lang.Short" "java.lang.Float"} target)
            (= 1 (count args))
-           (-> args (first) :op (= :const)))
+           (-> args (first) :op (= :const))
+           (-> args (first) :val number?))
 
       {:op :const
        :val (-> args (first) :val)}
