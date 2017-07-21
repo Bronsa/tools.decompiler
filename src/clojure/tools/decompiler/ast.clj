@@ -303,22 +303,16 @@
         (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
 (defmethod process-insn :goto [{:keys [loop-args insns jump-table pc] :as ctx} {:insn/keys [jump-offset]}]
-  (cond
-
-    (neg? jump-offset)
+  (if (neg? jump-offset)
     (let [args (for [{:keys [start-label index]} loop-args
                      :let [{:keys [init]} (find-local-variable ctx index start-label)]]
                  init)]
       (-> ctx
           (update :stack conj {:op :recur
                                :args (vec args)})))
-
-    (isa? bc/insn-h (->> pc (get jump-table) inc (nth insns) :insn/name keyword) ::bc/select)
+    ;; case || proto inline cache
     (-> ctx
-        (update :pc + jump-offset))
-
-    :else
-    (throw (Exception. ":("))))
+        (update :pc + jump-offset))))
 
 (defmethod process-insn ::bc/load-insn [{:keys [closed-overs] :as ctx} {:insn/keys [local-variable-element label]}]
   (let [{:insn/keys [target-index]} local-variable-element]
@@ -621,6 +615,12 @@
         (update :stack pop)
         (update :stack conj (assoc target :cast target-type)))))
 
+;; protocol inline caches
+(defmethod process-insn :if_acmpeq [{:keys [stack] :as ctx} _]
+  (-> ctx
+      (update :stack pop-n 2)
+      (update :pc + 17)))
+
 (defn merge-tables [ctx local-variable-table exception-table]
   (let [lvt (->> (for [{:local-variable/keys [name index start-label end-label]} local-variable-table]
                    {:op :local
@@ -737,5 +737,5 @@
 
   )
 
-;;; def/letfn/deftype/reify, genclass, geninterface, proxy, protocol inline caches
+;;; def/letfn/deftype/reify, genclass, geninterface, proxy
 ;; WIP int -> booleans
