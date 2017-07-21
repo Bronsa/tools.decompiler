@@ -14,6 +14,8 @@
 
 ;; WIP casting, type hints
 
+(declare bc->ast)
+
 (def initial-ctx {:fields {}
                   :statements []
                   :ast {}})
@@ -448,7 +450,7 @@
                  (:insn/local-variable-element (insn-at ctx {:offset 4}))))
       local-variables)))
 
-(defn process-letfn [{:keys [local-variable-table pc] :as ctx} target-index]
+(defn process-letfn [{:keys [local-variable-table pc bc-for] :as ctx} target-index]
   (let [{:keys [index start-label end-label]} (->> local-variable-table
                                                    (filter (comp (partial < pc) :start-label))
                                                    first)]
@@ -470,9 +472,9 @@
                             (recur (+ pc (:insn/length insn)) fns))))
 
             init-local-variables (map (fn [lv fn]
-                                        (assoc lv :init {:op :new
-                                                         :class fn
-                                                         :args []}))
+                                        (let [init (bc->ast (bc-for fn) {:bc-for bc-for
+                                                                         :fn-name (:name lv)})]
+                                          (assoc lv :init init)))
                                       local-variables letfn-fns)
             {:keys [stack] :as ctx} (update ctx :stack pop)
             {body-stack :stack body-stmnts :statements} (-> ctx
@@ -488,7 +490,11 @@
             (assoc :pc end-label)
             (update (if statement? :statements :stack)
                     conj {:op :letfn
-                          :local-variables init-local-variables
+                          :local-variables (mapv (fn [{:keys [init] :as lv}]
+                                                   {:op :local-variable
+                                                    :local-variable (dissoc lv :init)
+                                                    :init init})
+                                                 init-local-variables)
                           :body body})))
       (throw (Exception. ":(")))))
 
@@ -884,12 +890,17 @@
                 (merge initial-local-ctx {:jump-table jump-table})
                 (merge-tables local-variable-table exception-table)
                 (cond-> (not (:static flags))
-                  (-> (update :local-variable-table conj {:op :local
+                  (-> (update :local-variable-table disj {:op :local
+                                                          :start-label 0
+                                                          :end-label (-> bytecode peek :insn/label)
+                                                          :index 0
+                                                          :name "this"})
+                      (update :local-variable-table conj {:op :local
                                                           :this? true
                                                           :index 0
                                                           :name fn-name
                                                           :start-label 0
-                                                          :end-label (-> bytecode last :insn/label)})
+                                                          :end-label (-> bytecode peek :insn/label)})
                       (update :loop-args #(vec (rest %)))))
                 (assoc :insns bytecode)
                 (process-insns))]
@@ -906,7 +917,7 @@
                 (assoc :closed-overs (-> arg-types count inc range rest set)))]
     (process-method-insns ctx method)))
 
-(defn decompile-fn-method [ctx {:method/keys [local-variable-table flags] :as method}]
+(defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [local-variable-table flags] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)
         args (for [{:local-variable/keys [index name type start-label]} (->> local-variable-table
                                                                              (sort-by :local-variable/index))
@@ -917,6 +928,7 @@
                 :type type})]
 
     {:op :fn-method
+     :fn-name fn-name
      :var-args? (-> args last :type (= "clojure.lang.ISeq"))
      :args args
      :body ast}))
@@ -934,31 +946,29 @@
     {:op :fn
      :fn-methods methods-asts}))
 
-(defn decompile-fn [{class-name :class/name :as bc} ctx]
-  (let [[ns fn-name] ((juxt namespace name) (u/demunge class-name))
-        ast (-> ctx
-                (assoc :fn-name fn-name)
+(defn decompile-fn [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
+  (let [ast (-> ctx
+                (assoc :fn-name (or fn-name (name (u/demunge class-name))))
                 (assoc :class-name class-name)
                 (process-static-init bc)
                 (process-init bc)
                 (decompile-fn-methods bc))]
-    {:ns ns
-     :fn-name fn-name
-     :ast ast}))
+    ast))
 
 (defn decompile-ns [_ _]
   (throw (Exception. ":(")))
 
-(defn bc->ast [{:class/keys [super ^String name] :as bc}]
-  (cond
-    (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
-    (decompile-fn bc initial-ctx)
+(defn bc->ast [{:class/keys [super ^String name] :as bc} ctx]
+  (let [ctx (merge ctx initial-ctx)]
+    (cond
+      (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
+      (decompile-fn bc ctx)
 
-    (.endsWith name "__init")
-    (decompile-ns bc initial-ctx)
+      (.endsWith name "__init")
+      (decompile-ns bc ctx)
 
-    :else
-    (throw (Exception. ":("))))
+      :else
+      (throw (Exception. ":(")))))
 
 (comment
   (require '[clojure.tools.decompiler.bc :as bc]

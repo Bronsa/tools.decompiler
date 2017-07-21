@@ -7,22 +7,25 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns clojure.tools.decompiler
-  (:require [clojure.tools.decompiler.bc :as bc]
+  (:require [clojure.java.io :as io]
+            [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.ast :as ast]
             [clojure.tools.decompiler.sugar :as sa]
-            [clojure.tools.decompiler.link :as l]
             [clojure.tools.decompiler.source :as src]
             [clojure.tools.decompiler.compact :as cmp]))
 
 (defn classfile->source [filename]
   (-> filename
       (bc/analyze-classfile)
-      (ast/bc->ast)
-      (l/link)
+      (ast/bc->ast {:bc-for (fn [cname]
+                              ;; WIP
+                              (-> (str cname ".class")
+                                  (io/resource)
+                                  (.getFile)
+                                  (bc/analyze-classfile)))})
       (sa/ast->sugared-ast)
       (src/ast->clj)
-      (cmp/macrocompact)
-      :source))
+      (cmp/macrocompact)))
 
 (comment
 

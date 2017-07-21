@@ -4,111 +4,111 @@
 
 ;; WIP this could use a postwalk
 
-(defmulti -ast->sugared-ast :op)
+(defmulti ast->sugared-ast :op)
 
-(defmethod -ast->sugared-ast :const [ast]
+(defmethod ast->sugared-ast :const [ast]
   ast)
 
-(defmethod -ast->sugared-ast :case [ast]
+(defmethod ast->sugared-ast :case [ast]
   (-> ast
-      (update :test -ast->sugared-ast)
-      (update :default -ast->sugared-ast)
+      (update :test ast->sugared-ast)
+      (update :default ast->sugared-ast)
       (update :exprs #(mapv (fn [[type match test expr]]
-                              [type match (if (= :collision type) test (-ast->sugared-ast test)) (-ast->sugared-ast expr)])
+                              [type match (if (= :collision type) test (ast->sugared-ast test)) (ast->sugared-ast expr)])
                             %))))
 
-(defmethod -ast->sugared-ast :local-variable [ast]
+(defmethod ast->sugared-ast :local-variable [ast]
   (-> ast
-      (update :init -ast->sugared-ast)))
+      (update :init ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :try [{:keys [finally catches] :as ast}]
+(defmethod ast->sugared-ast :try [{:keys [finally catches] :as ast}]
   (-> ast
-      (update :body -ast->sugared-ast)
+      (update :body ast->sugared-ast)
       (cond-> finally
-        (update :finally -ast->sugared-ast))
+        (update :finally ast->sugared-ast))
       (cond-> catches
-        (update :catches #(mapv -ast->sugared-ast %)))))
+        (update :catches #(mapv ast->sugared-ast %)))))
 
-(defmethod -ast->sugared-ast :catch [ast]
+(defmethod ast->sugared-ast :catch [ast]
   (-> ast
-      (update :body -ast->sugared-ast)))
+      (update :body ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :let [ast]
+(defmethod ast->sugared-ast :let [ast]
   (-> ast
-      (update :local-variable -ast->sugared-ast)
-      (update :body -ast->sugared-ast)))
+      (update :local-variable ast->sugared-ast)
+      (update :body ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :letfn [ast]
+(defmethod ast->sugared-ast :letfn [ast]
   (-> ast
-      #_(update :local-variables -ast->sugared-ast)
-      (update :body -ast->sugared-ast)))
+      (update :local-variables #(mapv ast->sugared-ast %))
+      (update :body ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :set! [ast]
+(defmethod ast->sugared-ast :set! [ast]
   (-> ast
-      (update :target -ast->sugared-ast)
-      (update :val -ast->sugared-ast)))
+      (update :target ast->sugared-ast)
+      (update :val ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :loop [ast]
+(defmethod ast->sugared-ast :loop [ast]
   (-> ast
-      (update :local-variables #(mapv -ast->sugared-ast %))
-      (update :body -ast->sugared-ast)))
+      (update :local-variables #(mapv ast->sugared-ast %))
+      (update :body ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :new [ast]
+(defmethod ast->sugared-ast :new [ast]
   (-> ast
-      (update :args #(mapv -ast->sugared-ast %))))
+      (update :args #(mapv ast->sugared-ast %))))
 
-(defmethod -ast->sugared-ast :throw [ast]
+(defmethod ast->sugared-ast :throw [ast]
   (-> ast
-      (update :ex -ast->sugared-ast)))
+      (update :ex ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :monitor-enter [ast]
+(defmethod ast->sugared-ast :monitor-enter [ast]
   ast)
 
-(defmethod -ast->sugared-ast :monitor-exit [ast]
+(defmethod ast->sugared-ast :monitor-exit [ast]
   ast)
 
-(defmethod -ast->sugared-ast :do [ast]
+(defmethod ast->sugared-ast :do [ast]
   (let [{:keys [statements ret] :as ast} (-> ast
-                                             (update :statements #(mapv -ast->sugared-ast %))
-                                             (update :ret -ast->sugared-ast))]
+                                             (update :statements #(mapv ast->sugared-ast %))
+                                             (update :ret ast->sugared-ast))]
     (if (empty? statements)
       ret
       ast)))
 
-(defmethod -ast->sugared-ast :if [ast]
+(defmethod ast->sugared-ast :if [ast]
   (-> ast
-      (update :test -ast->sugared-ast)
-      (update :then -ast->sugared-ast)
-      (update :else -ast->sugared-ast)))
+      (update :test ast->sugared-ast)
+      (update :then ast->sugared-ast)
+      (update :else ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :set [ast]
+(defmethod ast->sugared-ast :set [ast]
   ast)
 
-(defmethod -ast->sugared-ast :recur [ast]
+(defmethod ast->sugared-ast :recur [ast]
   (-> ast
-      (update :args #(mapv -ast->sugared-ast %))))
+      (update :args #(mapv ast->sugared-ast %))))
 
-(defmethod -ast->sugared-ast :vector [ast]
+(defmethod ast->sugared-ast :vector [ast]
   ast)
 
-(defmethod -ast->sugared-ast :array [{:keys [!items] :as ast}]
-  (swap! !items #(mapv -ast->sugared-ast %))
+(defmethod ast->sugared-ast :array [{:keys [!items] :as ast}]
+  (swap! !items #(mapv ast->sugared-ast %))
   ast)
 
-(defmethod -ast->sugared-ast :local [ast]
+(defmethod ast->sugared-ast :local [ast]
   ast)
 
-(defmethod -ast->sugared-ast :var [ast]
+(defmethod ast->sugared-ast :var [ast]
   ast)
 
-(defmethod -ast->sugared-ast :the-var [ast]
+(defmethod ast->sugared-ast :the-var [ast]
   ast)
 
-(defmethod -ast->sugared-ast :instance-field [ast]
+(defmethod ast->sugared-ast :instance-field [ast]
   (-> ast
-      (update :instance -ast->sugared-ast)))
+      (update :instance ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :static-field [{:keys [target field] :as ast}]
+(defmethod ast->sugared-ast :static-field [{:keys [target field] :as ast}]
   (cond
     (and (#{"clojure.lang.PersistentList" "clojure.lang.PersistentVector"
             "clojure.lang.PersistentArrayMap" "clojure.lang.PersistentHashSet"} target)
@@ -128,23 +128,23 @@
     :else
     ast))
 
-(defmethod -ast->sugared-ast :invoke [ast]
+(defmethod ast->sugared-ast :invoke [ast]
   (-> ast
-      (update :args #(mapv -ast->sugared-ast %))
-      (update :fn -ast->sugared-ast)))
+      (update :args #(mapv ast->sugared-ast %))
+      (update :fn ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :fn [ast]
+(defmethod ast->sugared-ast :fn [ast]
   (-> ast
-      (update :fn-methods #(mapv -ast->sugared-ast %))))
+      (update :fn-methods #(mapv ast->sugared-ast %))))
 
-(defmethod -ast->sugared-ast :fn-method [ast]
+(defmethod ast->sugared-ast :fn-method [ast]
   (-> ast
-      (update :body -ast->sugared-ast)))
+      (update :body ast->sugared-ast)))
 
-(defmethod -ast->sugared-ast :invoke-instance [{:keys [method target-class] :as ast}]
+(defmethod ast->sugared-ast :invoke-instance [{:keys [method target-class] :as ast}]
   (let [{:keys [target args] :as ast} (-> ast
-                                         (update :target -ast->sugared-ast)
-                                         (update :args #(mapv -ast->sugared-ast %)))]
+                                         (update :target ast->sugared-ast)
+                                         (update :args #(mapv ast->sugared-ast %)))]
    (cond
 
      (and (= target-class "clojure.lang.IFn")
@@ -225,8 +225,8 @@
 
 ;; TODO: desugar lists
 
-(defmethod -ast->sugared-ast :invoke-static [{:keys [^String target method arg-types] :as ast}]
-  (let [{:keys [args] :as ast} (update ast :args #(mapv -ast->sugared-ast %))]
+(defmethod ast->sugared-ast :invoke-static [{:keys [^String target method arg-types] :as ast}]
+  (let [{:keys [args] :as ast} (update ast :args #(mapv ast->sugared-ast %))]
 
     (cond
 
@@ -333,7 +333,7 @@
         (let [args (if (= "clojure.lang.ISeq" (last arg-types))
                      ;; variadic invoke, unroll last arg
                      (let [[args varargs] ((juxt butlast last) args)]
-                       (into (vec args) (->> varargs :args first :!items deref (mapv -ast->sugared-ast))))
+                       (into (vec args) (->> varargs :args first :!items deref (mapv ast->sugared-ast))))
                      args)]
           {:op :invoke
            :fn {:op :var
@@ -381,7 +381,3 @@
 
       :else
       ast)))
-
-(defn ast->sugared-ast [data]
-  (-> data
-      (update :ast -ast->sugared-ast)))
