@@ -436,7 +436,6 @@
                                        :init init}
                       :body body}))))
 
-;; WIP letfn
 (defn find-letfn-info [{:keys [local-variable-table jump-table pc insns] :as ctx} {:keys [start-label end-label]}]
   (let [local-variables (->> local-variable-table
                              (filter (comp (partial = start-label) :start-label))
@@ -448,11 +447,55 @@
               (= (:insn/local-variable-element (curr-insn ctx))
                  (:insn/local-variable-element (insn-at ctx {:offset 4}))))
       local-variables)))
+
+(defn process-letfn [{:keys [local-variable-table pc] :as ctx} target-index]
+  (let [{:keys [index start-label end-label]} (->> local-variable-table
+                                                   (filter (comp (partial < pc) :start-label))
+                                                   first)]
+    (if (= target-index index)
+      (let [local-variables (->> local-variable-table
+                                 (filter (comp #{start-label} :start-label))
+                                 (sort-by :index))
+            letfn-fns (loop [pc pc fns []]
+                        (let [insn (curr-insn (assoc ctx :pc pc))]
+                          (cond
+                            (= (count fns) (count local-variables))
+                            fns
+
+                            (= "new" (:insn/name insn))
+                            (recur (+ pc (:insn/length insn))
+                                   (conj fns (-> insn :insn/pool-element :insn/target-value)))
+
+                            :else
+                            (recur (+ pc (:insn/length insn)) fns))))
+
+            init-local-variables (map (fn [lv fn]
+                                        (assoc lv :init {:op :new
+                                                         :class fn
+                                                         :args []}))
+                                      local-variables letfn-fns)
+            {:keys [stack] :as ctx} (update ctx :stack pop)
+            {body-stack :stack body-stmnts :statements} (-> ctx
+                                                            (assoc :statements [])
+                                                            (update :local-variable-table #(apply disj % local-variables))
+                                                            (update :local-variable-table #(apply conj % init-local-variables))
+                                                            (assoc :pc start-label)
+                                                            (assoc :terminate? (pc= end-label))
+                                                            (process-insns))
+            statement? (= stack body-stack)
+            body (->do (if statement? body-stmnts (conj body-stmnts (peek body-stack))))]
+        (-> ctx
+            (assoc :pc end-label)
+            (update (if statement? :statements :stack)
+                    conj {:op :letfn
+                          :local-variables init-local-variables
+                          :body body})))
+      (throw (Exception. ":(")))))
+
 (defn process-lexical-block [ctx local-variable init]
   (if-let [loop-info (find-loop-info ctx local-variable)]
     (process-loop ctx loop-info local-variable init)
     (process-let ctx local-variable init)))
-
 
 (defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
   (let [statement (peek stack)
@@ -466,17 +509,18 @@
           (update :statements conj statement)))))
 
 (defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element label length] :as insn}]
-  (let [{:insn/keys [target-index]} local-variable-element
-        local-variable (find-local-variable ctx target-index (+ label length))
-        init (peek stack)
-        initialized-local-variable (assoc local-variable :init init)
-        ctx (-> ctx
-                (update :stack pop)
-                (update :local-variable-table disj local-variable)
-                (update :local-variable-table conj initialized-local-variable))]
-    (if (init-local-variable? insn local-variable)
-      (process-lexical-block ctx local-variable init)
-      ctx)))
+  (let [{:insn/keys [target-index]} local-variable-element]
+    (if-let [local-variable (find-local-variable ctx target-index (+ label length))]
+      (let [init (peek stack)
+            initialized-local-variable (assoc local-variable :init init)
+            ctx (-> ctx
+                    (update :stack pop)
+                    (update :local-variable-table disj local-variable)
+                    (update :local-variable-table conj initialized-local-variable))]
+        (if (init-local-variable? insn local-variable)
+          (process-lexical-block ctx local-variable init)
+          ctx))
+      (process-letfn ctx target-index))))
 
 (defn parse-collision-expr [exprs {:keys [test then else]}]
   (let [node [(-> test :args first) then]
@@ -930,5 +974,5 @@
   )
 
 
-;;; def/letfn/deftype/reify, genclass, geninterface, proxy
+;;; def/deftype/reify, genclass, geninterface, proxy
 ;; WIP int -> booleans

@@ -39,6 +39,13 @@
 (defmethod -ast->clj :let [{:keys [local-variable body]}]
   `(let* ~(-ast->clj local-variable) ~(-ast->clj body)))
 
+(defmethod -ast->clj :letfn [{:keys [local-variables body]}]
+  `(letfn* ~(vec (for [{:keys [name init]} local-variables]
+                   `(~(symbol name) [& ~'args]
+                     ;; WIP placeholder until linker is implemented
+                     (apply ~(-ast->clj init) ~'args))))
+           ~(-ast->clj body)))
+
 (defmethod -ast->clj :loop [{:keys [local-variables body]}]
   `(loop* [~@(mapcat -ast->clj local-variables)] ~(-ast->clj body)))
 

@@ -38,6 +38,11 @@
       (update :local-variable -ast->sugared-ast)
       (update :body -ast->sugared-ast)))
 
+(defmethod -ast->sugared-ast :letfn [ast]
+  (-> ast
+      #_(update :local-variables -ast->sugared-ast)
+      (update :body -ast->sugared-ast)))
+
 (defmethod -ast->sugared-ast :set! [ast]
   (-> ast
       (update :target -ast->sugared-ast)

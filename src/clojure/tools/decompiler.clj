@@ -18,8 +18,8 @@
   (-> filename
       (bc/analyze-classfile)
       (ast/bc->ast)
-      (sa/ast->sugared-ast)
       (l/link)
+      (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)
       :source))
