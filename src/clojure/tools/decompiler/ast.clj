@@ -30,10 +30,12 @@
 (defn goto-label [{:insn/keys [jump-offset label]}]
   (+ jump-offset label))
 
+(def nil-expr {:op :const :val nil})
+
 (defn ->do [exprs]
   {:op :do
-   :statements (vec (butlast exprs))
-   :ret (or (last exprs) {:op :const :val nil})})
+   :statements (vec (remove #{nil-expr} (butlast exprs)))
+   :ret (or (last exprs) nil-expr)})
 
 (defn expr+statements [ctx]
   (->do (conj (-> ctx :statements)
@@ -211,7 +213,7 @@
 (defmethod process-insn :anewarray [{:keys [stack] :as ctx} _]
   (let [{dimension :val} (peek stack)
         expr {:op :array
-              :!items (atom (vec (repeat dimension {:op :const :val nil})))}]
+              :!items (atom (vec (repeat dimension nil-expr)))}]
 
     (-> ctx
         (update :stack pop)
