@@ -110,9 +110,12 @@
 
         body-end-label (:end-label first-handler)
 
-        ret-label (->> first-handler :handler-label
-                       (get jump-table) dec (nth insns) (goto-label)
-                       (get jump-table) inc (nth insns) :insn/label)
+        ret-label (-> (insn-at ctx {:label (:handler-label first-handler)
+                                    :offset -1})
+
+                      (goto-label)
+                      (as-> %
+                          (:insn/label (insn-at ctx {:label % :offset 1}))))
 
         expr-ctx (-> ctx
                      (update :exception-table #(apply disj % handlers)))
@@ -129,7 +132,7 @@
 
         ?finally (when (seq (remove :type handlers))
                    (let [start-label (:insn/label next-insn)
-                         end-label (->> first-handler :handler-label (get jump-table) dec (nth insns) :insn/label)
+                         end-label (:insn/label (insn-at ctx {:label (:handler-label first-handler) :offset -1}))
                          finally-ctx (process-insns (-> expr-ctx
                                                         (assoc :pc start-label)
                                                         (assoc :statements [])
@@ -140,7 +143,7 @@
                    (->>
                     (for [{:keys [handler-label type]} catches
                           :let [{:keys [start-label end-label name] :as local} (find-init-local ctx handler-label)]]
-                      (let [end-label (->> end-label (get jump-table) dec (nth insns) :insn/label)
+                      (let [end-label (:insn/label (insn-at ctx {:label end-label :offset -1}))
                             catch-ctx (process-insns (-> expr-ctx
                                                          (assoc :pc start-label)
                                                          (assoc :exception-table #{})
@@ -268,13 +271,13 @@
 (defmethod process-insn :ifnull [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [null-label (goto-label insn)
 
-        goto-end-insn (nth insns (-> (get jump-table null-label) (- 1)))
+        goto-end-insn (insn-at ctx {:label null-label :offset -1})
         end-label (goto-label goto-end-insn)
 
-        goto-else-insn (nth insns (-> (get jump-table label) (+ 2)))
+        goto-else-insn (insn-at ctx {:offset 2})
         else-label (goto-label goto-else-insn)
 
-        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 3)))
+        {then-label :insn/label} (insn-at ctx {:offset 3})
 
         [test _] (peek-n stack 2)]
 
@@ -285,10 +288,10 @@
 (defmethod process-insn :ifeq [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [else-label (goto-label insn)
 
-        goto-end-insn (nth insns (-> (get jump-table else-label) (- 2)))
+        goto-end-insn (insn-at ctx {:label else-label :offset -2})
         end-label (goto-label goto-end-insn)
 
-        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ 1)))
+        {then-label :insn/label} (insn-at ctx {:offset 1})
 
         test (peek stack)]
 
@@ -298,7 +301,7 @@
 
 (defmethod process-insn ::bc/number-compare [{:keys [stack jump-table insns] :as ctx} {:insn/keys [label] :as insn}]
   (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
-        insn (nth insns (-> (get jump-table label) (+ offset)))
+        insn (insn-at ctx {:offset offset})
 
         op (case (:insn/name insn)
              "ifle" ">"
@@ -310,10 +313,10 @@
 
         else-label (goto-label insn)
 
-        goto-end-insn (nth insns (-> (get jump-table else-label) (- 2)))
+        goto-end-insn (insn-at ctx {:label else-label :offset -2})
         end-label (goto-label goto-end-insn)
 
-        {then-label :insn/label} (nth insns (-> (get jump-table label) (+ offset 1)))
+        {then-label :insn/label} (insn-at ctx {:offset (inc offset)})
 
         [a b] (peek-n stack 2)
 
@@ -374,7 +377,7 @@
 (defn find-loop-info [{:keys [insns jump-table local-variable-table] :as ctx}
                       {:keys [start-label end-label] :as insn}]
   (when-let [jump-label (find-recur-jump-label ctx insn)]
-    (let [insn (nth insns (get jump-table jump-label))
+    (let [insn (insn-at ctx {:label jump-label})
           loop-label (goto-label insn)]
       {:loop-label loop-label
        :loop-args (->> (for [local-variable local-variable-table
@@ -390,7 +393,7 @@
            args-ctx (-> ctx (update :pc + length))
            args [{:op :local-variable :local-variable local-variable :init init}]]
       (if arg
-        (let [pre-insn (nth insns (dec (get jump-table (:start-label arg)))) ;; astore
+        (let [pre-insn (insn-at ctx {:label (:start-label arg) :offset -1}) ;; astore
               {:keys [statements stack] :as new-ctx} (process-insns (-> args-ctx
                                                                         (assoc :terminate? (pc= (:insn/label pre-insn)))
                                                                         (assoc :statements [])))
@@ -410,7 +413,7 @@
                                                                              (assoc :loop-args (mapv :local-variable args))
                                                                              (assoc :terminate? (pc= end-label))
                                                                              (assoc :statements [])))
-              statement? (not= "areturn" (:insn/name (nth insns (get jump-table end-label))))
+              statement? (not= "areturn" (:insn/name (insn-at ctx {:label end-label})))
               ;; WIP if statement is peek body stack correct?
               body (->do (conj body-stmnts (peek body-stack)))]
           (-> ctx
@@ -480,16 +483,12 @@
         ;; WIP: extract & refactor
         exprs (->> (for [i (range (count label-match))
                          :let [[label match] (nth label-match i)
-                               end-label (->> (nth (conj label-match [default-label nil]) (inc i))
-                                              (first)
-                                              (get jump-table)
-                                              dec
-                                              (nth insns)
-                                              :insn/label)]]
+                               [next-label] (nth (conj label-match [default-label nil]) (inc i))
+                               end-label (:insn/label (insn-at ctx {:label next-label :offset -1}))]]
 
                      (cond
 
-                       (= "getstatic" (->> label (get jump-table) (nth insns) :insn/name))
+                       (= "getstatic" (:insn/name (insn-at ctx {:label label})))
                        (let [test (-> ctx
                                       (assoc :pc label
                                              :statements []
@@ -562,7 +561,7 @@
                    (mapcat identity)
                    (into []))
 
-        end-label (->> default-label (get jump-table) (dec) (nth insns) (goto-label))
+        end-label (-> (insn-at {:label default-label :offset -1}) (goto-label))
 
         default-ctx (-> ctx
                         (assoc :pc default-label
