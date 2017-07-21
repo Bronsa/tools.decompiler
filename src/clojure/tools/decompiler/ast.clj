@@ -494,7 +494,7 @@
                          [[test expr]])
 
                        :else
-
+                       ;; WIP check for not out of bounds
                        (if (or (= "invokevirtual" (->> pc (get jump-table) dec (nth insns) :insn/name))
                                (and (= "invokevirtual" (->> pc (get jump-table) (+ -5) (nth insns) :insn/name))
                                     (= "iand "(->> pc (get jump-table) dec (nth insns) :insn/name))))
@@ -507,10 +507,12 @@
                                                       (process-insns))
                                test (peek stack)
                                expr (-> ctx
-                                        (assoc :pc (-> (get jump-table pc) (+ 2) (nth insns) :insn/label)
+                                        (assoc :pc (->> (get jump-table pc)
+                                                        (+ 2)
+                                                        (nth insns)
+                                                        :insn/label)
                                                :statements []
-                                               :terminate? (fn [{:keys [pc insns jump-table]}]
-                                                             (pc= end-label)))
+                                               :terminate? (pc= end-label))
                                         (process-insns)
                                         :stack
                                         peek)]
@@ -554,6 +556,7 @@
 
 (defmethod process-insn :instanceof [{:keys [stack pc jump-table insns] :as ctx} {:insn/keys [pool-element]}]
 
+  ;; WIP check for not out of bounds
   (if (or (isa? bc/insn-h (->> pc (get jump-table) (+ 5) (nth insns) :insn/name keyword) ::bc/select)
           (and (isa? bc/insn-h (->> pc (get jump-table) (+ 9) (nth insns) :insn/name keyword) ::bc/select)
                (= "isrh "(->> pc (get jump-table) (+ 6) (nth insns) :insn/name))))
