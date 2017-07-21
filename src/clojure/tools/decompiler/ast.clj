@@ -342,7 +342,7 @@
     (-> ctx
         (update :pc + jump-offset))))
 
-(defn skip-locals-clearing [ctx]
+(defn skip-locals-clearing-lv [ctx]
   (if (and (= "aconst_null" (:insn/name (insn-at ctx {:offset 1})))
            (isa? bc/insn-h (-> (insn-at ctx {:offset 2}) :insn/name keyword) ::bc/store-insn)
            (= (-> (curr-insn ctx) :insn/local-variable-element :insn/target-index)
@@ -356,12 +356,12 @@
     (if-let [local (find-local-variable ctx target-index label)]
       (-> ctx
           (update :stack conj local)
-          (skip-locals-clearing))
+          (skip-locals-clearing-lv))
       (if (contains? closed-overs target-index)
         (-> ctx
             (update :stack conj {:op :closed-over
                                  :target target-index})
-            (skip-locals-clearing))
+            (skip-locals-clearing-lv))
         (throw (Exception. ":("))))))
 
 (defn find-recur-jump-label [{:keys [jump-table pc insns] :as ctx} {:keys [start-label end-label index]}]
@@ -805,12 +805,25 @@
                                                :field target-name})
                                     :val val})))))
 
+(defn skip-locals-clearing-field [ctx]
+  ;; WIP must make sure it's not a mutable deftype field
+  (if (and (= "aload_0" (:insn/name (insn-at ctx {:offset 1})))
+           (= "aconst_null" (:insn/name (insn-at ctx {:offset 2})))
+           (= "putfield" (:insn/name (insn-at ctx {:offset 3})))
+           (= (-> (curr-insn ctx) :insn/pool-element :insn/target-name)
+              (-> (insn-at ctx {:offset 3}) :insn/pool-element :insn/target-name)))
+    (-> ctx
+        (assoc :pc (:insn/label (insn-at ctx {:offset 4}))))
+    ctx))
+
 (defmethod process-insn :getfield [{:keys [fields class-name stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
         instance (peek stack)
         ctx (update ctx :stack pop)]
     (if (= target-class class-name)
-      (update ctx :stack conj (get fields target-name {:op :local :name target-name}))
+      (-> ctx
+          (update :stack conj (get fields target-name {:op :local :name target-name}))
+          (skip-locals-clearing-field))
       (update ctx :stack conj {:op :instance-field
                                :instance instance
                                :field target-name}))))
