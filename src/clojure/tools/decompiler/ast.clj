@@ -35,6 +35,27 @@
    :statements (vec (butlast exprs))
    :ret (or (last exprs) {:op :const :val nil})})
 
+(defn expr+statements [ctx]
+  (->do (conj (-> ctx :statements)
+              (-> ctx :stack peek))))
+
+(defn curr-insn [{:keys [insns jump-table pc]}]
+  (->> pc
+       (get jump-table)
+       (nth insns)))
+
+(defn insn-at [{:keys [insns jump-table pc]} n]
+  (->> pc
+       (get jump-table)
+       (+ n)
+       (nth insns)))
+
+(defn maybe-insn-at [{:keys [insns jump-table pc]} n]
+  (->> pc
+       (get jump-table)
+       (+ n)
+       (get insns)))
+
 (defn find-local-variable [{:keys [local-variable-table]} index label]
   (->> local-variable-table
        (filter (comp #{index} :index))
@@ -104,7 +125,7 @@
 
         body (->do (conj (-> body-ctx :statements) (-> body-ctx :stack peek)))
 
-        next-insn (->> body-ctx :pc (get jump-table) (inc) (nth insns))
+        next-insn (insn-at body-ctx 1)
 
         ?finally (when (seq (remove :type handlers))
                    (let [start-label (:insn/label next-insn)
@@ -156,7 +177,7 @@
     (recur (process-try-block ctx))
 
     :else
-    (let [insn (nth insns (get jump-table pc))]
+    (let [insn (curr-insn ctx)]
       (recur (>process-insn ctx insn)))))
 
 (defmethod process-insn ::bc/no-op [ctx _]
@@ -313,7 +334,7 @@
           (update :stack conj {:op :recur
                                :args (vec args)})))
 
-    (isa? bc/insn-h (->> pc (get jump-table) inc (nth insns) :insn/name keyword) ::bc/select)
+    (isa? bc/insn-h (->> ctx (insn-at 1) :insn/name keyword) ::bc/select)
     (-> ctx
         (update :pc + jump-offset))
 
@@ -364,7 +385,7 @@
                        (into []))})))
 
 (defn process-loop [{:keys [insns jump-table pc] :as ctx} {:keys [loop-label loop-args]} {:keys [end-label] :as local-variable} init]
-  (let [{:insn/keys [length]} (nth insns (get jump-table pc))]
+  (let [{:insn/keys [length]} (curr-insn ctx)]
     (loop [[arg & loop-args] (rest loop-args)
            args-ctx (-> ctx (update :pc + length))
            args [{:op :local-variable :local-variable local-variable :init init}]]
@@ -400,7 +421,7 @@
                             :body body})))))))
 
 (defn process-let [{:keys [insns stack jump-table pc] :as ctx} {:keys [end-label] :as local-variable} init]
-  (let [{:insn/keys [length]} (nth insns (get jump-table pc))
+  (let [{:insn/keys [length]} (curr-insn ctx)
         {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
                                                                        (update :pc + length)
                                                                        (assoc :terminate? (pc= end-label))
@@ -459,8 +480,8 @@
         ;; WIP: extract & refactor
         exprs (->> (for [i (range (count label-match))
                          :let [[label match] (nth label-match i)
-                               ;; WIP horribly inefficient
-                               end-label (->> (nth (conj (mapv first label-match) default-label) (inc i))
+                               end-label (->> (nth (conj label-match [default-label nil]) (inc i))
+                                              (first)
                                               (get jump-table)
                                               dec
                                               (nth insns)
@@ -474,76 +495,66 @@
                                              :statements []
                                              :terminate? (pc= end-label))
                                       (process-insns)
-                                      :stack
-                                      peek)]
+                                      (expr+statements))]
                          (parse-collision-expr [] (-> test :body :ret :body :ret)))
 
                        hash-test?
-                       (let [{:keys [pc stack]} (-> ctx
-                                                    (assoc :pc label
-                                                           :statements []
-                                                           :terminate? (fn [{:keys [pc insns jump-table]}]
-                                                                         (#{"if_acmpne" "invokestatic"}
-                                                                          (:insn/name (nth insns (get jump-table pc))))))
-                                                    (process-insns))
+                       (let [{:keys [stack] :as test-ctx} (-> ctx
+                                                              (assoc :pc label
+                                                                     :statements []
+                                                                     :terminate? (fn [ctx]
+                                                                                   (#{"if_acmpne" "invokestatic"}
+                                                                                    (:insn/name (curr-insn ctx)))))
+                                                              (process-insns))
                              test (peek stack)
-                             start-expr-label (if (= "if_acmpne" (:insn/name (nth insns (get jump-table pc))))
-                                                (:insn/label (nth insns (inc (get jump-table pc))))
-                                                (:insn/label (nth insns (+ 2 (get jump-table pc)))))
-                             ;; WIP statements
+                             start-expr-label (if (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
+                                                (:insn/label (insn-at test-ctx 1))
+                                                (:insn/label (insn-at test-ctx 2)))
                              expr (-> ctx
                                       (assoc :pc start-expr-label
                                              :statements []
                                              :terminate? (pc= end-label))
                                       (process-insns)
-                                      :stack
-                                      peek)]
+                                      (expr+statements))]
                          [[test expr]])
 
                        :else
-                       ;; WIP check for not out of bounds
-                       (if (or (= "invokevirtual" (->> pc (get jump-table) dec (nth insns) :insn/name))
-                               (and (= "invokevirtual" (->> pc (get jump-table) (+ -5) (get insns) :insn/name))
-                                    (= "iand" (->> pc (get jump-table) dec (nth insns) :insn/name))))
 
-                         (let [{:keys [pc stack]} (-> ctx
-                                                      (assoc :pc label
-                                                             :statements []
-                                                             :terminate? (fn [{:keys [pc insns jump-table]}]
-                                                                           (= "invokestatic" (:insn/name (nth insns (get jump-table pc))))))
-                                                      (process-insns))
+                       (if (or (= "invokevirtual" (->> (insn-at ctx -1) :insn/name))
+                               (and (= "invokevirtual" (->> (maybe-insn-at ctx -5) :insn/name))
+                                    (= "iand" (->> (insn-at ctx -1) :insn/name))))
+
+                         (let [{:keys [stack] :as test-ctx} (-> ctx
+                                                                (assoc :pc label
+                                                                       :statements []
+                                                                       :terminate? (fn [ctx]
+                                                                                     (= "invokestatic" (:insn/name (curr-insn ctx)))))
+                                                                (process-insns))
                                test (peek stack)
 
-                               ;; WIP statements
                                expr (-> ctx
-                                        (assoc :pc (->> (get jump-table pc)
-                                                        (+ 2)
-                                                        (nth insns)
-                                                        :insn/label)
+                                        (assoc :pc (->> (insn-at test-ctx 2) :insn/label)
                                                :statements []
                                                :terminate? (pc= end-label))
                                         (process-insns)
-                                        :stack
-                                        peek)]
+                                        (expr+statements))]
                            [[test expr]])
 
-                         (let [{:keys [pc stack]} (-> ctx
-                                                      (assoc :pc label
-                                                             :statements []
-                                                             :terminate? (fn [{:keys [pc insns jump-table]}]
-                                                                           (= "lcmp" (:insn/name (nth insns (get jump-table pc))))))
-                                                      (process-insns))]
+                         (let [{:keys [stack] :as test-ctx} (-> ctx
+                                                                (assoc :pc label
+                                                                       :statements []
+                                                                       :terminate? (fn [ctx]
+                                                                                     (= "lcmp" (:insn/name (curr-insn ctx)))))
+                                                                (process-insns))]
 
-                           (if (= "lcmp" (:insn/name (nth insns (get jump-table pc))))
+                           (if (= "lcmp" (:insn/name (curr-insn test-ctx)))
                              (let [[test _] (peek-n stack 2)
-                                   ;; WIP statements
                                    expr (-> ctx
-                                            (assoc :pc (:insn/label (nth insns (+ 2 (get jump-table pc))))
+                                            (assoc :pc (:insn/label (insn-at test-ctx 2))
                                                    :statements []
                                                    :terminate? (pc= end-label))
                                             (process-insns)
-                                            :stack
-                                            peek)]
+                                            (expr+statements))]
                                [[test expr]])
 
                              [[match (peek stack)]])))))
@@ -568,13 +579,12 @@
 
 (defmethod process-insn :instanceof [{:keys [stack pc jump-table insns] :as ctx} {:insn/keys [pool-element]}]
 
-  ;; WIP check for not out of bounds
-  (if (or (isa? bc/insn-h (->> pc (get jump-table) (+ 5) (get insns) :insn/name keyword) ::bc/select)
-          (and (isa? bc/insn-h (->> pc (get jump-table) (+ 9) (get insns) :insn/name keyword) ::bc/select)
-               (= "ishr" (->> pc (get jump-table) (+ 6) (nth insns) :insn/name))))
+  (if (or (isa? bc/insn-h (->> (maybe-insn-at ctx 5) :insn/name keyword) ::bc/select)
+          (and (isa? bc/insn-h (->> (maybe-insn-at ctx 9) :insn/name keyword) ::bc/select)
+               (= "ishr" (->> (insn-at ctx 6) :insn/name))))
 
     (-> ctx
-        (assoc :pc (->> pc (get jump-table) (+ 5) (nth insns) :insn/label)))
+        (assoc :pc (->> (insn-at ctx 5) :insn/label)))
 
 
     (let [{:insn/keys [target-type]} pool-element
@@ -665,10 +675,9 @@
 (defn process-keyword-invoke [{:keys [insns jump-table pc fields] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-name]} pool-element
         {:keys [pc statements stack]} (process-insns (assoc ctx
-                                                            :pc (->> (get jump-table pc) (+ 2) (nth insns) :insn/label)
-                                                            :terminate? (fn [{:keys [pc jump-table insns]}]
-                                                                          (->> (get jump-table pc)
-                                                                               (nth insns)
+                                                            :pc (->> (insn-at ctx 2) :insn/label)
+                                                            :terminate? (fn [ctx]
+                                                                          (->> (curr-insn ctx)
                                                                                :insn/name
                                                                                (= "dup_x2")))
                                                             :statements []))
@@ -891,5 +900,5 @@
 
   )
 
-;;; in-ns/def/letfn/case/deftype/reify, genclass, geninterface, proxy, protocol inline caches
+;;; in-ns/def/letfn/deftype/reify, genclass, geninterface, proxy, protocol inline caches
 ;; WIP int -> booleans
