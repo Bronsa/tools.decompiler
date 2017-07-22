@@ -912,25 +912,24 @@
                                (vec))))))
 
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags exception-table]}]
-  (let [ctx (-> ctx
-                (merge initial-local-ctx {:jump-table jump-table})
-                (merge-tables local-variable-table exception-table)
-                (cond-> (not (:static flags))
-                  (-> (update :local-variable-table disj {:op :local
-                                                          :start-label 0
-                                                          :end-label (-> bytecode peek :insn/label)
-                                                          :index 0
-                                                          :name "this"})
-                      (update :local-variable-table conj {:op :local
-                                                          :this? true
-                                                          :index 0
-                                                          :name fn-name
-                                                          :start-label 0
-                                                          :end-label (-> bytecode peek :insn/label)})
-                      (update :loop-args #(vec (rest %)))))
-                (assoc :insns bytecode)
-                (process-insns))]
-    (apply dissoc ctx :jump-table (keys initial-local-ctx))))
+  (-> ctx
+      (merge initial-local-ctx {:jump-table jump-table})
+      (merge-tables local-variable-table exception-table)
+      (cond-> (not (:static flags))
+        (-> (update :local-variable-table disj {:op :local
+                                                :start-label 0
+                                                :end-label (-> bytecode peek :insn/label)
+                                                :index 0
+                                                :name "this"})
+            (update :local-variable-table conj {:op :local
+                                                :this? true
+                                                :index 0
+                                                :name fn-name
+                                                :start-label 0
+                                                :end-label (-> bytecode peek :insn/label)})
+            (update :loop-args #(vec (rest %)))))
+      (assoc :insns bytecode)
+      (process-insns)))
 
 (defn process-static-init [ctx {:class/keys [methods]}]
   (let [method (u/find-method methods {:method/name "<clinit>"})]
@@ -994,10 +993,28 @@
           ctx (range)))
 
 (defn process-ns-load [ctx {:class/keys [methods]}]
-  (let [method (u/find-method methods {:method/name "load"})]
-    (-> (process-method-insns ctx method)
-        :statements
-        (->do))))
+  (let [{:method/keys [bytecode jump-table]} (u/find-method methods {:method/name "load"})
+        ctx (-> ctx
+                (assoc
+                 :terminate? (comp seq :statements)
+                 :insns bytecode)
+                (merge initial-local-ctx {:jump-table jump-table}))
+        indicize (fn [s i]
+                   (reduce (fn [[s i] insn]
+                             (if (::idx insn)
+                               [(conj s insn) i]
+                               [(conj s (assoc insn ::idx i)) (inc i)]))
+                           [[] i] s))]
+    (loop [{:keys [stack statements] :as ctx} (process-insns ctx)
+           init []
+           i 0]
+      (let [[stack i] (indicize stack i)
+            [statements i] (indicize statements i)]
+        (if (and (seq statements))
+          (recur (process-insns (assoc ctx :statements [] :stack stack))
+                 (into init statements)
+                 i)
+          (->do (sort-by ::idx (concat init stack statements))))))))
 
 (defn decompile-ns [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
   (-> ctx
