@@ -973,8 +973,12 @@
      :fn-methods methods-asts}))
 
 (defn extract-fn-name [^String cname]
-  (let [fname (subs cname (inc (.lastIndexOf cname "$")))]
-    (or (second (re-matches #"(.+)__[0-9]+$" fname)) fname)))
+  (let [fname (subs cname (inc (.lastIndexOf cname "$")))
+        pretty-fname (second (re-matches #"(.+)__[0-9]+$" fname))]
+    (if (and pretty-fname
+             (not= pretty-fname "fn"))
+      pretty-fname
+      fname)))
 
 (defn decompile-fn [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
   (-> ctx
