@@ -978,16 +978,32 @@
     (or (second (re-matches #"(.+)__[0-9]+$" fname)) fname)))
 
 (defn decompile-fn [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
-  (let [ast (-> ctx
-                (assoc :fn-name (or fn-name (extract-fn-name class-name)))
-                (assoc :class-name class-name)
-                (process-static-init bc)
-                (process-init bc)
-                (decompile-fn-methods bc))]
-    ast))
+  (-> ctx
+      (assoc :fn-name (or fn-name (extract-fn-name class-name)))
+      (assoc :class-name class-name)
+      (process-static-init bc)
+      (process-init bc)
+      (decompile-fn-methods bc)))
 
-(defn decompile-ns [_ _]
-  (throw (Exception. ":(")))
+
+(defn process-ns-inits [ctx {:class/keys [methods]}]
+  (reduce (fn [ctx i]
+            (if-let [method (u/find-method methods {:method/name (str "__init" i)})]
+              (process-method-insns ctx method)
+              (reduced ctx)))
+          ctx (range)))
+
+(defn process-ns-load [ctx {:class/keys [methods]}]
+  (let [method (u/find-method methods {:method/name "load"})]
+    (-> (process-method-insns ctx method)
+        :statements
+        (->do))))
+
+(defn decompile-ns [{class-name :class/name :as bc} {:keys [fn-name] :as ctx}]
+  (-> ctx
+      (assoc :class-name class-name)
+      (process-ns-inits bc)
+      (process-ns-load bc)))
 
 (defn bc->ast [{:class/keys [super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
