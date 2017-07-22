@@ -13,38 +13,51 @@
             [clojure.tools.decompiler.ast :as ast]
             [clojure.tools.decompiler.sugar :as sa]
             [clojure.tools.decompiler.source :as src]
-            [clojure.tools.decompiler.compact :as cmp]))
+            [clojure.tools.decompiler.compact :as cmp]
+            [fipp.clojure :as fp]))
 
-(defn bc-for [cname]
-  ;; WIP
-  (try
-    (some-> cname
-            (s/replace "." "/")
-            (str ".class")
-            (io/resource)
-            (.getFile)
-            (bc/analyze-classfile))
-    (catch Exception e)))
-
-(defn classfile->source [filename]
+(defn absolute-filename [filename]
   (-> filename
+      (io/file)
+      (.getAbsolutePath)))
+
+(defn classfile->source [filename bc-for]
+  (-> filename
+      (absolute-filename)
       (bc/analyze-classfile)
       (ast/bc->ast {:bc-for bc-for})
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)))
 
-(comment
+(defn cname [c input-path]
+  (-> c
+      (subs 0 (- (count c) (count ".class")))
+      (subs (inc (count input-path)))))
 
-  (require '[clojure.java.io :as io])
+(defn classfile? [^String f]
+  (.endsWith f ".class"))
 
-  (doseq [f (rest (file-seq (io/file "resources/")))
-          :when (.endsWith (str f) ".class")]
-    (try (classfile->source (str f))
-         (catch Exception e
-           (println "FAILED" (str f)))))
+(defn bc-for [classname->path]
+  (fn [classname]
+    (some-> classname
+            classname->path
+            absolute-filename
+            bc/analyze-classfile)))
 
-  (-> "test$baz.class"
-      (io/resource)
-      (.getFile)
-      (classfile->source)))
+(defn decompile [{:keys [input-path output-path]}]
+  (let [files (filter classfile? (map str (file-seq (io/file input-path))))
+        inits (filter (fn [^String i] (.endsWith i "__init.class")) files)
+        classname->path (into {} (map (fn [^String classfile]
+                                        [(cname classfile input-path) classfile])
+                                      files))]
+
+    (doseq [init inits
+            :let [cname (cname init input-path)
+                  ns-name (subs cname 0 (- (count cname) (count "__init")))
+                  ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]]
+      (println "Decompiling" init "to" ns-file)
+      (let [source (classfile->source init (bc-for classname->path))
+            pprinted-source (with-out-str (fp/pprint source))]
+        (io/make-parents ns-file)
+        (spit ns-file pprinted-source)))))

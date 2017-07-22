@@ -335,16 +335,3 @@
 
       (derive :tableswitch ::select)
       (derive :lookupswitch ::select)))
-
-(comment
-  (require '[clojure.java.io :as io])
-
-  (def filename (-> "test$bar.class" io/resource .getFile))
-  (def klass (parse-classfile filename))
-
-  (def m (first (.getMethods klass)))
-
-  (keys (bean m))
-
-  (analyze-classfile filename)
-  )

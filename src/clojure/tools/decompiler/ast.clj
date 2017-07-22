@@ -1106,18 +1106,5 @@
       :else
       (throw (Exception. ":(")))))
 
-(comment
-  (require '[clojure.tools.decompiler.bc :as bc]
-           '[clojure.java.io :as io])
-
-  (def filename (-> "test$foo.class" io/resource .getFile))
-  (def bc (bc/analyze-classfile filename))
-
-  (bc->ast bc)
-
-  (fn* ([] "yoo"))
-
-  )
-
 ;;; genclass, proxy
 ;; WIP int -> booleans

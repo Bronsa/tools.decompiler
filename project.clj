@@ -4,4 +4,5 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
-                 [org.apache.bcel/bcel "6.0"]])
+                 [org.apache.bcel/bcel "6.0"]
+                 [fipp "0.6.9"]])

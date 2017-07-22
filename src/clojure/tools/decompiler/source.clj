@@ -140,19 +140,3 @@
             (mapv ast->clj catches))
         ~@(when finally
             [`(finally ~(ast->clj finally))])))
-
-(comment
-  (require '[clojure.tools.decompiler.bc :as bc]
-           '[clojure.tools.decompiler.ast :as ast]
-           '[clojure.tools.decompiler.sugar :as sa]
-           '[clojure.java.io :as io])
-
-  (-> "test$baz.class"
-      io/resource
-      .getFile
-      (bc/analyze-classfile)
-      (ast/bc->ast)
-      (sa/ast->sugaredast)
-      (ast->clj))
-
-  )
