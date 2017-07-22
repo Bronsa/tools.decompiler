@@ -975,7 +975,7 @@
                                                   arg-types))))
         (process-method-insns method))))
 
-(defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [local-variable-table flags] :as method}]
+(defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [local-variable-table flags name] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)
         args (for [{:local-variable/keys [index name type start-label]} (->> local-variable-table
                                                                              (sort-by :local-variable/index))
@@ -987,19 +987,23 @@
 
     {:op :fn-method
      :fn-name fn-name
-     :var-args? (-> args last :type (= "clojure.lang.ISeq"))
+     :var-args? (or (= "doInvoke" name)
+                    (= "clojure.lang.ISeq" (-> args last :type)))
      :args args
      :body ast}))
 
 (defn decompile-fn-methods [{:keys [fn-name] :as ctx} {:class/keys [methods]}]
   (let [invokes (u/find-methods methods {:method/name "invoke"})
         invokes-static (u/find-methods methods {:method/name "invokeStatic"})
-        invoke-methods (into invokes-static (for [{:method/keys [arg-types] :as invoke} invokes
-                                                  :let [argc (count arg-types)]
-                                                  :when (empty? (filter (fn [{:method/keys [arg-types]}]
-                                                                          (= (count arg-types) argc))
-                                                                        invokes-static))]
-                                              invoke))
+        invoke-vararg (u/find-method methods {:method/name "doInvoke"})
+        invoke-methods (-> invokes-static
+                           (into (for [{:method/keys [arg-types] :as invoke} (into invokes (when invoke-vararg
+                                                                                             [invoke-vararg]))
+                                       :let [argc (count arg-types)]
+                                       :when (empty? (filter (fn [{:method/keys [arg-types]}]
+                                                               (= (count arg-types) argc))
+                                                             invokes-static))]
+                                   invoke)))
         methods-asts (mapv (partial decompile-fn-method ctx) invoke-methods)]
     {:op :fn
      :name fn-name
