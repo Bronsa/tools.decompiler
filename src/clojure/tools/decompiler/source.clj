@@ -45,6 +45,12 @@
                      ~@(first (drop-while (complement sequential?) (ast->clj init))))))
            ~(ast->clj body)))
 
+;; WIP meta
+(defmethod ast->clj :deftype [{:keys [name tname fields interfaces]}]
+  `(deftype* ~(symbol tname) ~(symbol name)
+     ~(mapv (comp symbol :name) fields)
+     :implements ~(mapv symbol interfaces)))
+
 (defmethod ast->clj :loop [{:keys [local-variables body]}]
   `(loop* [~@(mapcat ast->clj local-variables)] ~(ast->clj body)))
 

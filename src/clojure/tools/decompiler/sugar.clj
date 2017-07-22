@@ -33,6 +33,9 @@
   (-> ast
       (update :body ast->sugared-ast)))
 
+(defmethod ast->sugared-ast :deftype [ast]
+  ast)
+
 (defmethod ast->sugared-ast :let [ast]
   (let [{:keys [body local-variables] :as ast} (-> ast
                                                    (update :local-variables #(mapv ast->sugared-ast %))

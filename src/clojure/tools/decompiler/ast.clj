@@ -1026,8 +1026,10 @@
       (process-ns-inits bc)
       (process-ns-load bc)))
 
-(defn decompile-deftype [{:class/keys [fields interfaces] :as bc} ctx]
+(defn decompile-deftype [{:class/keys [fields interfaces ^String name] :as bc} ctx]
   {:op :deftype
+   :name name
+   :tname (.replaceFirst name "\\." "/")
    :fields (->> (for [{:field/keys [name flags]} fields]
                   {:name name
                    :mutable? (cond
@@ -1035,7 +1037,7 @@
                                (:final flags) false
                                :else :unsynchronized-mutable)})
                (into []))
-   :interfaces (vec (remove #{"clojure.lang.IType"} interfaces))})
+   :interfaces interfaces})
 
 (defn bc->ast [{:class/keys [interfaces super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
