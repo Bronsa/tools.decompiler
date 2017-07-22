@@ -881,9 +881,12 @@
 (defmethod process-insn :checkcast [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-type]} pool-element
         target (peek stack)]
-    (-> ctx
-        (update :stack pop)
-        (update :stack conj (assoc target :cast target-type)))))
+
+    (cond-> ctx
+
+      target
+      (-> (update :stack pop)
+          (update :stack conj (assoc target :cast target-type))))))
 
 ;; protocol inline caches
 (defmethod process-insn :if_acmpeq [{:keys [stack] :as ctx} _]
