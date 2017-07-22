@@ -36,8 +36,8 @@
 (defmethod ast->clj :local-variable [{:keys [local-variable init]}]
   `[~(ast->clj local-variable) ~(ast->clj init)])
 
-(defmethod ast->clj :let [{:keys [local-variable body]}]
-  `(let* ~(ast->clj local-variable) ~(ast->clj body)))
+(defmethod ast->clj :let [{:keys [local-variables body]}]
+  `(let* [~@(mapcat ast->clj local-variables)] ~(ast->clj body)))
 
 (defmethod ast->clj :letfn [{:keys [local-variables body]}]
   `(letfn* ~(vec (for [{:keys [local-variable init]} local-variables]

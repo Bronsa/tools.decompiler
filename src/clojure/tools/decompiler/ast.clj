@@ -444,9 +444,9 @@
         (assoc :pc end-label)
         (update (if statement? :statements :stack)
                 conj {:op :let
-                      :local-variable {:op :local-variable
-                                       :local-variable local-variable
-                                       :init init}
+                      :local-variables [{:op :local-variable
+                                          :local-variable local-variable
+                                          :init init}]
                       :body body}))))
 
 (defn find-letfn-info [{:keys [local-variable-table jump-table pc insns] :as ctx} {:keys [start-label end-label]}]
