@@ -317,6 +317,15 @@
       (derive :dcmpl ::number-compare)
       (derive :if_icmpne ::number-compare)
 
+      (derive :iaload ::aget)
+      (derive :saload ::aget)
+      (derive :faload ::aget)
+      (derive :daload ::aget)
+      (derive :laload ::aget)
+      (derive :caload ::aget)
+      (derive :baload ::aget)
+      (derive :aaload ::aget)
+
       (derive :nop ::no-op)
       (derive :d2f ::no-op)
       (derive :d2i ::no-op)

@@ -310,6 +310,22 @@
             (update :stack pop)
             (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))))
 
+(defmethod process-insn ::bc/aget [{:keys [stack] :as ctx} _]
+  (let [[arr i] (peek-n stack 2)]
+    (-> ctx
+        (update :stack pop-n 2)
+        (update :stack conj {:op :invoke
+                             :fn {:op :var :ns "clojure.core" :name "aget"}
+                             :args [arr i]}))))
+
+(defmethod process-insn :arraylength [{:keys [stack] :as ctx} _]
+  (let [arr (peek stack)]
+    (-> ctx
+        (update :stack pop)
+        (update :stack conj {:op :invoke
+                             :fn {:op :var :ns "clojure.core" :name "alength"}
+                             :args [arr]}))))
+
 (defmethod process-insn ::bc/number-compare [{:keys [stack] :as ctx} insn]
   (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
         insn (insn-at ctx {:offset offset})
