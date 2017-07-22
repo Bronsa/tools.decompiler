@@ -48,6 +48,10 @@
 (defmethod ast->clj :method [{:keys [name args body]}]
   `(~(symbol name) [~@(map (comp symbol :name) args)] ~(ast->clj body)))
 
+(defmethod ast->clj :reify [{:keys [interfaces methods]}]
+  `(reify* ~(mapv symbol interfaces)
+           ~@(map ast->clj methods)))
+
 ;; WIP meta
 (defmethod ast->clj :deftype [{:keys [name tname fields interfaces methods]}]
   `(deftype* ~(symbol tname) ~(symbol name)

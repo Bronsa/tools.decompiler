@@ -1042,7 +1042,7 @@
       (process-ns-inits bc)
       (process-ns-load bc)))
 
-(defn process-deftype-methods [ctx methods]
+(defn process-methods [ctx methods]
   (->> (for [{:method/keys [name local-variable-table] :as method} methods]
          {:op :method
           :name name
@@ -1067,13 +1067,25 @@
                               (remove (comp :static :method/flags))
                               ;; bridge
                               (remove (comp :volatile :method/flags))
-                              (remove (comp #{"<init>"} :method/name)))]
+                              (remove (comp #{"<init>"} :method/name)))
+        ctx (-> ctx (process-static-init bc))]
     {:op :deftype
      :name name
      :tname (.replaceFirst name "\\." "/")
      :fields fields
-     :methods (process-deftype-methods ctx instance-methods)
+     :methods (process-methods ctx instance-methods)
      :interfaces interfaces}))
+
+(defn decompile-reify [{:class/keys [interfaces methods] :as bc} ctx]
+  (let [instance-methods (->> methods
+                              (remove (comp :static :method/flags))
+                              ;; bridge
+                              (remove (comp :volatile :method/flags))
+                              (remove (comp #{"<init>" "meta" "withMeta"} :method/name)))
+        ctx (-> ctx (process-static-init bc))]
+    {:op :reify
+     :methods (process-methods ctx instance-methods)
+     :interfaces (vec (remove #{"clojure.lang.IObj"} interfaces))}))
 
 (defn bc->ast [{:class/keys [interfaces super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
@@ -1086,6 +1098,10 @@
 
       (some #{"clojure.lang.IType" "clojure.lang.IRecord"} interfaces)
       (decompile-deftype bc ctx)
+
+      (and (some #{"clojure.lang.IObj"} interfaces)
+           (.contains name "$reify__"))
+      (decompile-reify bc ctx)
 
       :else
       (throw (Exception. ":(")))))
@@ -1104,5 +1120,5 @@
   )
 
 
-;;; def/reify, genclass, geninterface, proxy
+;;; def, genclass, geninterface, proxy
 ;; WIP int -> booleans

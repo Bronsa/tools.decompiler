@@ -37,6 +37,10 @@
   (-> ast
       (update :body ast->sugared-ast)))
 
+(defmethod ast->sugared-ast :reify [ast]
+  (-> ast
+      (update :methods #(mapv ast->sugared-ast %))))
+
 (defmethod ast->sugared-ast :deftype [ast]
   (-> ast
       (update :methods #(mapv ast->sugared-ast %))))
