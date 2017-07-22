@@ -316,7 +316,6 @@
       (derive :dcmpl ::number-compare)
       (derive :if_icmpne ::number-compare)
 
-      (derive :return ::no-op)
       (derive :nop ::no-op)
       (derive :d2f ::no-op)
       (derive :d2i ::no-op)
