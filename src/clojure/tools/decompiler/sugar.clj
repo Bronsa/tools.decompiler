@@ -321,6 +321,7 @@
            (= 2 (count args))
            (every? (comp #{:const} :op) args))
 
+      ;; too aggressive, on init this should intern
       {:op :the-var
        :ns (:val (first args))
        :name (:val (second args))}

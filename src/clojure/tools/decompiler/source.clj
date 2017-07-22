@@ -42,7 +42,7 @@
 (defmethod ast->clj :letfn [{:keys [local-variables body]}]
   `(letfn* ~(vec (for [{:keys [local-variable init]} local-variables]
                    `(~(symbol (:name local-variable))
-                     ~@(fnext (ast->clj init)))))
+                     ~@(first (drop-while (complement sequential?) (ast->clj init))))))
            ~(ast->clj body)))
 
 (defmethod ast->clj :loop [{:keys [local-variables body]}]
