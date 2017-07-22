@@ -483,8 +483,9 @@
                             (recur (+ pc (:insn/length insn)) fns))))
 
             init-local-variables (map (fn [lv fn]
-                                        (let [init (bc->ast (bc-for fn) {:bc-for bc-for
-                                                                         :fn-name (:name lv)})]
+                                        (let [init (bc->ast (bc-for fn)
+                                                            {:bc-for bc-for
+                                                             :fn-name (:name lv)})]
                                           (assoc lv :init init)))
                                       local-variables letfn-fns)
             {:keys [stack] :as ctx} (update ctx :stack pop)
@@ -931,16 +932,17 @@
       (assoc :insns bytecode)
       (process-insns)))
 
-(defn process-static-init [ctx {:class/keys [methods]}]
+(defn process-static-init [{:keys [bc-for] :as ctx} {:class/keys [methods]}]
   (let [method (u/find-method methods {:method/name "<clinit>"})]
-    (process-method-insns ctx method)))
+    (-> ctx
+        (process-method-insns method))))
 
-(defn process-init [ctx {:class/keys [methods]}]
+(defn process-init [{:keys [bc-for] :as ctx} {:class/keys [methods]}]
   (let [method (u/find-method methods {:method/name "<init>"})
-        {:method/keys [arg-types]} method
-        ctx (-> ctx
-                (assoc :closed-overs (-> arg-types count inc range rest set)))]
-    (process-method-insns ctx method)))
+        {:method/keys [arg-types]} method]
+    (-> ctx
+        (assoc :closed-overs (-> arg-types count inc range rest set))
+        (process-method-insns method))))
 
 (defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [local-variable-table flags] :as method}]
   (let [{:keys [ast]} (process-method-insns ctx method)

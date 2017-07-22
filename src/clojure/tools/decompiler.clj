@@ -8,6 +8,7 @@
 
 (ns clojure.tools.decompiler
   (:require [clojure.java.io :as io]
+            [clojure.string :as s]
             [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.ast :as ast]
             [clojure.tools.decompiler.sugar :as sa]
@@ -19,10 +20,14 @@
       (bc/analyze-classfile)
       (ast/bc->ast {:bc-for (fn [cname]
                               ;; WIP
-                              (some-> (str cname ".class")
-                                      (io/resource)
-                                      (.getFile)
-                                      (bc/analyze-classfile)))})
+                              (try
+                                (some-> cname
+                                        (s/replace "." "/")
+                                        (str ".class")
+                                        (io/resource)
+                                        (.getFile)
+                                        (bc/analyze-classfile))
+                                (catch Exception e)))})
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)))
@@ -33,9 +38,9 @@
 
   (doseq [f (rest (file-seq (io/file "resources/")))
           :when (.endsWith (str f) ".class")]
-    (println (str f))
-    (prn (classfile->source (str f)))
-    (println "\n"))
+    (try (classfile->source (str f))
+         (catch Exception e
+           (println "FAILED" (str f)))))
 
   (-> "test$baz.class"
       (io/resource)
