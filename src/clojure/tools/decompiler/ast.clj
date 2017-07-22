@@ -716,11 +716,12 @@
         args (peek-n stack argc)]
     (-> ctx
         (update :stack pop-n (inc argc))
-        (update :stack conj (if-let [bc (bc-for target-class)]
-                              (bc->ast bc {:bc-for bc-for})
-                              {:op :new
-                               :class target-class
-                               :args args})))))
+        (update :stack conj (let [bc (bc-for target-class)]
+                              (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} (:class/super bc))
+                                (bc->ast bc {:bc-for bc-for})
+                                {:op :new
+                                 :class target-class
+                                 :args args}))))))
 
 (defmethod process-insn :athrow [{:keys [stack] :as ctx} _]
   (let [ex (peek stack)]
@@ -1088,5 +1089,5 @@
   )
 
 
-;;; def/deftype/reify, genclass, geninterface, proxy
+;;; def/reify, genclass, geninterface, proxy
 ;; WIP int -> booleans
