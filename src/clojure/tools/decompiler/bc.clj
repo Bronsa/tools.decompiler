@@ -195,6 +195,7 @@
       (derive :ldc2_w ::const-insn)
       (derive :aconst_null ::const-insn)
       (derive :bipush ::const-insn)
+      (derive :sipush ::const-insn)
       (derive :dconst_0 ::const-insn)
       (derive :dconst_1 ::const-insn)
       (derive :iconst_0 ::const-insn)
