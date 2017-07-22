@@ -9,6 +9,14 @@
 (defmethod ast->sugared-ast :const [ast]
   ast)
 
+(defmethod ast->sugared-ast :list [ast]
+  (-> ast
+      (update :items #(mapv ast->sugared-ast %))))
+
+(defmethod ast->sugared-ast :map [ast]
+  (-> ast
+      (update :items #(mapv ast->sugared-ast %))))
+
 (defmethod ast->sugared-ast :case [ast]
   (-> ast
       (update :test ast->sugared-ast)
