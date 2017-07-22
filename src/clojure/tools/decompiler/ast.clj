@@ -8,9 +8,8 @@
 
 (ns clojure.tools.decompiler.ast
   (:require [clojure.set :as set]
-            [clojure.tools.decompiler.stack :refer [peek-n pop-n]]
             [clojure.tools.decompiler.bc :as bc]
-            [clojure.tools.decompiler.utils :as u]))
+            [clojure.tools.decompiler.utils :refer [peek-n pop-n] :as u]))
 
 ;; WIP casting, type hints
 

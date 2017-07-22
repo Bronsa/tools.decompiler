@@ -26,6 +26,14 @@
   ;; assert just 1
   (first (find-methods methods matches)))
 
+(defn pop-n [stack n]
+  (let [c (count stack)]
+    (subvec stack 0 (- c n))))
+
+(defn peek-n [stack n]
+  (let [c (count stack)]
+    (subvec stack (- c n) c)))
+
 (defmethod print-method (Class/forName "[Ljava.lang.Object;") [o w]
   (.write w "#array")
   (.write w " ")
