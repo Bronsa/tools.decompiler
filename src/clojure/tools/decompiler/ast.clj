@@ -242,9 +242,9 @@
                              :sentinel sentinel}))))
 
 (defmethod process-insn :return [{:keys [stack statements] :as ctx} _]
-  (-> ctx
-      (assoc :stack [] :statements []
-             :ast (->do statements))))
+  (let [ret (peek stack)]
+    (-> ctx
+        (assoc :ast (->do (conj statements ret))))))
 
 (defmethod process-insn ::bc/return-value [{:keys [stack statements] :as ctx} _]
   (let [ret (peek stack)]
