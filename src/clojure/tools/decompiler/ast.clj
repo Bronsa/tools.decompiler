@@ -1026,7 +1026,18 @@
       (process-ns-inits bc)
       (process-ns-load bc)))
 
-(defn bc->ast [{:class/keys [super ^String name] :as bc} ctx]
+(defn decompile-deftype [{:class/keys [fields interfaces] :as bc} ctx]
+  {:op :deftype
+   :fields (->> (for [{:field/keys [name flags]} fields]
+                  {:name name
+                   :mutable? (cond
+                               (:volatile flags) :volatile-mutable
+                               (:final flags) false
+                               :else :unsynchronized-mutable)})
+               (into []))
+   :interfaces (vec (remove #{"clojure.lang.IType"} interfaces))})
+
+(defn bc->ast [{:class/keys [interfaces super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
     (cond
       (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
@@ -1034,6 +1045,9 @@
 
       (.endsWith name "__init")
       (decompile-ns bc ctx)
+
+      (some #{"clojure.lang.IType"} interfaces)
+      (decompile-deftype bc ctx)
 
       :else
       (throw (Exception. ":(")))))
