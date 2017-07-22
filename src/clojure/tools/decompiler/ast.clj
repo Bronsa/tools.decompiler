@@ -519,15 +519,17 @@
     (process-let ctx local-variable init)))
 
 (defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
-  (let [statement (peek stack)
-        ctx (-> ctx (update :stack pop))]
+  (if-let [statement (peek stack)]
     (if-let [local-variable (find-init-local ctx (+ label length))]
       (-> ctx
+          (update :stack pop)
           (update :local-variable-table disj local-variable)
           (update :local-variable-table conj (assoc local-variable :init statement))
           (process-lexical-block local-variable statement))
       (-> ctx
-          (update :statements conj statement)))))
+          (update :stack pop)
+          (update :statements conj statement)))
+    ctx))
 
 (defmethod process-insn ::bc/store-insn [{:keys [stack] :as ctx} {:insn/keys [local-variable-element label length] :as insn}]
   (let [{:insn/keys [target-index]} local-variable-element]
