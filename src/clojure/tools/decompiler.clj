@@ -58,6 +58,6 @@
                   ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]]
       (println "Decompiling" init "to" ns-file)
       (let [source (classfile->source init (bc-for classname->path))
-            pprinted-source (with-out-str (fp/pprint source))]
+            pprinted-source (with-out-str (fp/pprint source {:width 100}))]
         (io/make-parents ns-file)
         (spit ns-file pprinted-source)))))
