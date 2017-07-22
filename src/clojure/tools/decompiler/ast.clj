@@ -290,18 +290,21 @@
         (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
 
 (defmethod process-insn :ifeq [{:keys [stack] :as ctx} insn]
-  (let [else-label (goto-label insn)
+  (let [else-label (goto-label insn)]
+    (if (not= "pop" (:insn/name (insn-at ctx {:label else-label :offset -1})))
+      (-> ctx
+          (assoc :pc (:insn/label (insn-at ctx {:offset 4}))))
+      (let [goto-end-insn (insn-at ctx {:label else-label :offset -2})
 
-        goto-end-insn (insn-at ctx {:label else-label :offset -2})
-        end-label (goto-label goto-end-insn)
+            end-label (goto-label goto-end-insn)
 
-        {then-label :insn/label} (insn-at ctx {:offset 1})
+            {then-label :insn/label} (insn-at ctx {:offset 1})
 
-        test (peek stack)]
+            test (peek stack)]
 
-    (-> ctx
-        (update :stack pop)
-        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
+        (-> ctx
+            (update :stack pop)
+            (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))))
 
 (defmethod process-insn ::bc/number-compare [{:keys [stack] :as ctx} insn]
   (let [offset (if (= "if_icmpne" (:insn/name insn)) 0 1)
