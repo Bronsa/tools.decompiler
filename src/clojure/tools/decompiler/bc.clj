@@ -130,14 +130,28 @@
 (defn fixup-name [name]
   (or (second (re-matches #"(.*__auto__)[0-9]+$" name)) name))
 
+
+(defn fixup-lvt [lvt]
+  (let [els (group-by (comp zero? :local-variable/start-label) lvt)
+        args (get els true)
+        locals (get els false)]
+    (concat locals
+            (second
+             (reduce
+              (fn [[i lvt] {:local-variable/keys [index type] :as lv}]
+                [(+ i ({"long" 2 "double" 2} type 1)) (conj lvt (assoc lv :local-variable/index i))])
+              [0 #{}]
+              (sort-by :index args))))))
+
 (defn parse-local-variable-table [local-variable-table]
-  (for [^LocalVariable local-variable local-variable-table]
-    #:local-variable{:name (fixup-name (.getName local-variable))
-                     :start-label (.getStartPC local-variable)
-                     :end-label (+ (.getStartPC local-variable)
-                                   (.getLength local-variable))
-                     :index (.getIndex local-variable)
-                     :type (Utility/signatureToString (.getSignature local-variable) false)}))
+  (fixup-lvt
+   (for [^LocalVariable local-variable local-variable-table]
+     #:local-variable{:name (fixup-name (.getName local-variable))
+                      :start-label (.getStartPC local-variable)
+                      :end-label (+ (.getStartPC local-variable)
+                                    (.getLength local-variable))
+                      :index (.getIndex local-variable)
+                      :type (Utility/signatureToString (.getSignature local-variable) false)})))
 
 (defn parse-exception-table [^JavaClass klass ^Method method]
   (let [cp-gen (ConstantPoolGen. (.getConstantPool klass))

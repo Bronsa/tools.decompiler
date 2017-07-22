@@ -970,7 +970,9 @@
   (let [method (u/find-method methods {:method/name "<init>"})
         {:method/keys [arg-types]} method]
     (-> ctx
-        (assoc :closed-overs (-> arg-types count inc range rest set))
+        (assoc :closed-overs (second (reduce (fn [[i c] a] [(+ i a) (conj c i)]) [1 #{0}]
+                                             (map #({"long" 2 "double" 2} % 1)
+                                                  arg-types))))
         (process-method-insns method))))
 
 (defn decompile-fn-method [{:keys [fn-name] :as ctx} {:method/keys [local-variable-table flags] :as method}]
