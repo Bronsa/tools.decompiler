@@ -52,6 +52,9 @@
   `(reify* ~(mapv symbol interfaces)
            ~@(map ast->clj methods)))
 
+(defmethod ast->clj :import [{:keys [class]}]
+  `(clojure.core/import* ~class))
+
 ;; WIP meta
 (defmethod ast->clj :deftype [{:keys [name tname fields interfaces methods]}]
   `(deftype* ~(symbol tname) ~(symbol name)

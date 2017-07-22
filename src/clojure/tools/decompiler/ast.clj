@@ -1119,6 +1119,5 @@
 
   )
 
-
-;;; def, genclass, geninterface, proxy
+;;; genclass, proxy
 ;; WIP int -> booleans

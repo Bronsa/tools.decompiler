@@ -177,6 +177,12 @@
       :name (:name target)
       :ns (:ns target)}
 
+     ;; WIP better match
+     (and (= method "importClass")
+          (= (:method target) "deref"))
+     {:op :import
+      :class (-> args first :args first :val)}
+
      :else
      ast)))
 
