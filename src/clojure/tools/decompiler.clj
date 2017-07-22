@@ -15,19 +15,21 @@
             [clojure.tools.decompiler.source :as src]
             [clojure.tools.decompiler.compact :as cmp]))
 
+(defn bc-for [cname]
+  ;; WIP
+  (try
+    (some-> cname
+            (s/replace "." "/")
+            (str ".class")
+            (io/resource)
+            (.getFile)
+            (bc/analyze-classfile))
+    (catch Exception e)))
+
 (defn classfile->source [filename]
   (-> filename
       (bc/analyze-classfile)
-      (ast/bc->ast {:bc-for (fn [cname]
-                              ;; WIP
-                              (try
-                                (some-> cname
-                                        (s/replace "." "/")
-                                        (str ".class")
-                                        (io/resource)
-                                        (.getFile)
-                                        (bc/analyze-classfile))
-                                (catch Exception e)))})
+      (ast/bc->ast {:bc-for bc-for})
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)))
