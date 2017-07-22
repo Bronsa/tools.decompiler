@@ -41,6 +41,7 @@
 (defn bc-for [classname->path]
   (fn [classname]
     (some-> classname
+            (s/replace "." "/")
             classname->path
             absolute-filename
             bc/analyze-classfile)))
