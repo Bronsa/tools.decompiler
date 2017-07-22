@@ -924,7 +924,7 @@
             (update :local-variable-table conj {:op :local
                                                 :this? true
                                                 :index 0
-                                                :name fn-name
+                                                :name (or fn-name "this")
                                                 :start-label 0
                                                 :end-label (-> bytecode peek :insn/label)})
             (update :loop-args #(vec (rest %)))))
@@ -1026,18 +1026,36 @@
       (process-ns-inits bc)
       (process-ns-load bc)))
 
-(defn decompile-deftype [{:class/keys [fields interfaces ^String name] :as bc} ctx]
-  {:op :deftype
-   :name name
-   :tname (.replaceFirst name "\\." "/")
-   :fields (->> (for [{:field/keys [name flags]} fields]
-                  {:name name
-                   :mutable? (cond
-                               (:volatile flags) :volatile-mutable
-                               (:final flags) false
-                               :else :unsynchronized-mutable)})
-               (into []))
-   :interfaces interfaces})
+(defn process-deftype-methods [ctx methods]
+  (->> (for [{:method/keys [name local-variable-table] :as method} methods]
+         {:op :method
+          :name name
+          :args (->> (for [{:local-variable/keys [name start-label type]} (->> local-variable-table
+                                                                               (sort-by :local-variable/index))
+                           :when (zero? start-label)]
+                       {:name name
+                        :type type})
+                     (into []))
+          :body (:ast (process-method-insns ctx method))})
+       (into [])))
+
+(defn decompile-deftype [{:class/keys [fields interfaces methods ^String name] :as bc} ctx]
+  (let [fields (->> (for [{:field/keys [name flags]} fields]
+                      {:name name
+                       :mutable? (cond
+                                   (:volatile flags) :volatile-mutable
+                                   (:final flags) false
+                                   :else :unsynchronized-mutable)})
+                    (into []))
+        instance-methods (->> methods
+                              (remove (comp :static :method/flags))
+                              (remove (comp #{"<init>"} :method/name)))]
+    {:op :deftype
+     :name name
+     :tname (.replaceFirst name "\\." "/")
+     :fields fields
+     :methods (process-deftype-methods ctx instance-methods)
+     :interfaces interfaces}))
 
 (defn bc->ast [{:class/keys [interfaces super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
