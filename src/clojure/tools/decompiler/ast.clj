@@ -1060,6 +1060,8 @@
                     (into []))
         instance-methods (->> methods
                               (remove (comp :static :method/flags))
+                              ;; bridge
+                              (remove (comp :volatile :method/flags))
                               (remove (comp #{"<init>"} :method/name)))]
     {:op :deftype
      :name name
