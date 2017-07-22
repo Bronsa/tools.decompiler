@@ -1072,7 +1072,7 @@
       (.endsWith name "__init")
       (decompile-ns bc ctx)
 
-      (some #{"clojure.lang.IType"} interfaces)
+      (some #{"clojure.lang.IType" "clojure.lang.IRecord"} interfaces)
       (decompile-deftype bc ctx)
 
       :else
