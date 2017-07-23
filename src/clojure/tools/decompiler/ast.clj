@@ -711,9 +711,9 @@
                          (let [{:keys [stack] :as test-ctx} (-> ctx
                                                                 (assoc :pc label
                                                                        :statements []
-                                                                       ;; should this be (some-fn V (pc= end-label)) ?
-                                                                       :terminate? (fn [ctx]
-                                                                                     (= "lcmp" (:insn/name (curr-insn ctx)))))
+                                                                       :terminate? (some-fn (pc= end-label)
+                                                                                            (fn [ctx]
+                                                                                              (= "lcmp" (:insn/name (curr-insn ctx))))))
                                                                 (process-insns))]
 
                            (if (= "lcmp" (:insn/name (curr-insn test-ctx)))
