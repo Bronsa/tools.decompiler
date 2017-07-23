@@ -54,12 +54,9 @@
       (update :methods #(mapv ast->sugared-ast %))))
 
 (defmethod ast->sugared-ast :let [ast]
-  (let [{:keys [body local-variables] :as ast} (-> ast
-                                                   (update :local-variables #(mapv ast->sugared-ast %))
-                                                   (update :body ast->sugared-ast))]
-    (if (-> body :op (= :let))
-      (update body :local-variables (fn [lvs] (into local-variables lvs)))
-      ast)))
+  (-> ast
+      (update :local-variables #(mapv ast->sugared-ast %))
+      (update :body ast->sugared-ast)))
 
 (defmethod ast->sugared-ast :letfn [ast]
   (-> ast
