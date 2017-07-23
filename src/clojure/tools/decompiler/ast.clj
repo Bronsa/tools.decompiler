@@ -538,7 +538,7 @@
     (process-loop ctx loop-info local-variable init)
     (process-let ctx local-variable init)))
 
-(defmethod process-insn :pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
+(defmethod process-insn ::bc/pop [{:keys [stack] :as ctx} {:insn/keys [label length]}]
   (if-let [statement (peek stack)]
     (if-let [local-variable (find-init-local ctx (+ label length))]
       (-> ctx

@@ -357,5 +357,8 @@
       (derive :l2i ::no-op)
       (derive :l2d ::no-op)
 
+      (derive :pop ::pop)
+      (derive :pop2 ::pop)
+
       (derive :tableswitch ::select)
       (derive :lookupswitch ::select)))
