@@ -28,7 +28,9 @@
       (ast/bc->ast {:bc-for bc-for})
       (sa/ast->sugared-ast)
       (src/ast->clj)
-      (cmp/macrocompact)))
+      (cmp/macrocompact)
+      (->> (keep identity)
+           (remove #(and (seq? %) (= 'var (first %)))))))
 
 (defn cname [c input-path]
   (-> c

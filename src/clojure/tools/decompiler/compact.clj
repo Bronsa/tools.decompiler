@@ -73,6 +73,9 @@
      #(l/project [?body1 ?body2]
                  (l/== % `(do ~@?body1 ~@?body2)))])
 
+  [(.setMeta ?ref ?meta) (clojure.core/reset-meta! ?ref ?meta)]
+  [(clojure.core/reset-meta! ?var {:arglists ?_ :line ?__ :column ?___ :file ?____}) nil]
+
   [(.bindRoot (var ?var) (clojure.core/fn ?name . ?body))
    (clojure.core/defn ?name . ?body)]
 
