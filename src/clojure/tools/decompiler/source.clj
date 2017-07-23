@@ -19,8 +19,7 @@
           ~(->> (for [[type match test expr] exprs]
                   (if (= :collision type)
                     [match [match (ast->clj expr)]]
-                    ;; sorry
-                    [match [(eval (ast->clj test)) (ast->clj expr)]]))
+                    [match [(ast->clj test) (ast->clj expr)]]))
                (into (sorted-map)))
           ~type ~switch-type ~@(when skip-check [skip-check])))
 
