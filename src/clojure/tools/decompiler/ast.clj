@@ -522,6 +522,7 @@
 (defn process-letfn [{:keys [local-variable-table pc bc-for] :as ctx} target-index]
   (let [{:keys [index start-label end-label]} (->> local-variable-table
                                                    (filter (comp (partial < pc) :start-label))
+                                                   (sort-by :index)
                                                    first)]
 
     (if (= target-index index)
