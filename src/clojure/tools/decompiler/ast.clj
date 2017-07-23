@@ -89,6 +89,7 @@
 
 (defmethod process-insn :default [ctx {:insn/keys [name]}]
   (println "INSN NOT HANDLED:" name)
+  (throw (Exception. ":("))
   ctx)
 
 (defn start-try-block-info [pc exception-table]
@@ -1157,7 +1158,8 @@
 
 ;; deftypes with `this` as a field break
 (defn decompile-deftype [{:class/keys [fields interfaces methods ^String name] :as bc} ctx]
-  (let [fields (->> (for [{:field/keys [name flags]} fields]
+  (let [fields (->> (for [{:field/keys [name flags]} fields
+                          :when (not (:static flags))]
                       {:name name
                        :mutable? (cond
                                    (:volatile flags) :volatile-mutable
