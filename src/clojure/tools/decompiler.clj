@@ -57,8 +57,10 @@
             :let [cname (cname init input-path)
                   ns-name (subs cname 0 (- (count cname) (count "__init")))
                   ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]]
-      (println "Decompiling" init "to" ns-file)
+      (println "Decompiling" init (when output-path (str "to" ns-file)))
       (let [source (classfile->source init (bc-for classname->path))
             pprinted-source (with-out-str (fp/pprint source {:width 100}))]
-        (io/make-parents ns-file)
-        (spit ns-file pprinted-source)))))
+        (if output-path
+          (do (io/make-parents ns-file)
+              (spit ns-file pprinted-source))
+          (println pprinted-source))))))
