@@ -63,6 +63,27 @@
        (clojure.core/let [?z ?x] . ?body)))
    (clojure.core/when-let [?z ?y] . ?body)]
 
+  [(loop* . ?l) (clojure.core/loop . ?l)]
+
+  (let [[?seq ?b ?chunk ?count ?i ?body ?c ?a ?c ?_] (repeatedly l/lvar)]
+    [#(l/== % `(loop [~?seq (seq ~?b) ~?chunk nil ~?count 0 ~?i 0]
+                 (if (< ~?i ~?count)
+                   (let [~?a (.nth ~?chunk ~?i)]
+                     ~(l/llist 'do ?body))
+                   (when-let [~?seq (seq ~?seq)]
+                     (if (chunked-seq? ~?seq)
+                       (let [~?c (chunk-first ~?seq)]
+                         (recur (chunk-rest ~?seq) ~?c (count ~?c) 0))
+                       ~(l/llist `let [?a (list `first ?seq)] ?_))))))
+     #(l/project [?a ?b ?body]
+                 (l/== % `(clojure.core/doseq [~?a ~?b] ~@(butlast ?body))))])
+
+  [(clojure.core/let [?x ?y]
+     (if ?x
+       (clojure.core/let [?z ?x] . ?body)
+       ?else))
+   (clojure.core/if-let [?z ?y] (do . ?body) ?else)]
+
   [(fn* . ?body) (clojure.core/fn . ?body)]
 
   [((clojure.core/fn ?n ([] . ?body))) (do . ?body)]
