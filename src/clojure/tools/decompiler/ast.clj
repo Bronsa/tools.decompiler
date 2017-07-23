@@ -519,22 +519,11 @@
         (cond-> (not statement?)
           (assoc :recur? recur?)))))
 
-(defn find-letfn-info [{:keys [local-variable-table jump-table pc insns] :as ctx} {:keys [start-label end-label]}]
-  (let [local-variables (->> local-variable-table
-                             (filter (comp (partial = start-label) :start-label))
-                             (filter (comp (partial = end-label) :end-label))
-                             (sort-by :index))]
-    (when (or (> (count local-variables) 1)
-              (= ["new" "dup" "invokespecial" (:insn/name (curr-insn ctx))]
-                 (mapv :insn/name (take 4 (subvec insns (get jump-table pc) (count insns)))))
-              (= (:insn/local-variable-element (curr-insn ctx))
-                 (:insn/local-variable-element (insn-at ctx {:offset 4}))))
-      local-variables)))
-
 (defn process-letfn [{:keys [local-variable-table pc bc-for] :as ctx} target-index]
   (let [{:keys [index start-label end-label]} (->> local-variable-table
                                                    (filter (comp (partial < pc) :start-label))
                                                    first)]
+
     (if (= target-index index)
       (let [local-variables (->> local-variable-table
                                  (filter (comp #{start-label} :start-label))
