@@ -196,7 +196,7 @@
 
      :class/flags (parse-flags klass)
 
-     :class/super (-> klass (.getSuperClass) (.getClassName))
+     :class/super (-> klass (.getSuperclassName))
      :class/interfaces (vec (.getInterfaceNames klass))
 
      :class/fields (class-fields klass)
