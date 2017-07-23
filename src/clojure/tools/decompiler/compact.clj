@@ -110,8 +110,12 @@
                  (l/== % `(let [~@?argv1 ~@?argv2] ~@?body)))]))
 
 (defn macrocompact [source]
-  (->> source
-       (iterate (partial w/prewalk #(macrocompact-step % rules)))
-       (partition 2 1)
-       (drop-while #(apply not= %))
-       (ffirst)))
+  (w/postwalk
+   (fn [node]
+     (if (seq? node)
+       (let [new-node (macrocompact-step node rules)]
+         (if (= node new-node)
+           node
+           (recur new-node)))
+       node))
+   source))
