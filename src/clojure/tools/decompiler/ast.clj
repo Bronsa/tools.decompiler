@@ -785,7 +785,9 @@
     (-> ctx
         (update :stack pop-n (inc argc))
         (update :stack conj (let [bc (bc-for target-class)]
-                              (if (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} (:class/super bc))
+                              (if (or (#{"clojure.lang.AFunction" "clojure.lang.RestFn" } (:class/super bc))
+                                      (and (some #{"clojure.lang.IObj"} (:class/interfaces bc))
+                                           (.contains ^String target-class "$reify__")))
                                 (bc->ast bc {:bc-for bc-for})
                                 {:op :new
                                  :class target-class
