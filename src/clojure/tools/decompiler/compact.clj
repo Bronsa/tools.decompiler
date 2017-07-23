@@ -13,7 +13,7 @@
 
 ;; Adapted from kibit
 (defn macrocompact-step [expr rules]
-  (let [alts (l/run* [q]
+  (let [alts (l/run 1 [q]
                (l/fresh [pat subst]
                  (l/membero [pat subst] rules)
                  (l/project [pat subst]
@@ -41,6 +41,22 @@
   [(let* ?binds . ?body) (clojure.core/let ?binds . ?body)]
   [(if ?test (do . ?then)) (clojure.core/when ?test . ?then)]
   [(if ?test ?then nil) (clojure.core/when ?test ?then)]
+
+  [(clojure.lang.Var/pushThreadBindings ?binds) (clojure.core/push-thread-bindings ?binds)]
+  [(clojure.lang.Var/popThreadBindings) (clojure.core/pop-thread-bindings)]
+
+  [(do (clojure.core/push-thread-bindings ?binds)
+       (try
+         ?body
+         (finally (clojure.core/pop-thread-bindings))))
+   (clojure.core/with-bindings ?binds ?body)]
+
+  [(clojure.core/with-bindings
+     {clojure.lang.Compiler/LOADER ?_}
+     . ?body)
+   (do . ?body)]
+
+  [(if (.equals ?ns 'clojure.core) nil (do (clojure.lang.LockingTransaction/runInTransaction . ?fn) nil))   nil]
 
   [(clojure.core/let [?x ?y]
      (clojure.core/when ?x
