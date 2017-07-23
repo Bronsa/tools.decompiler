@@ -1162,7 +1162,7 @@
                               ;; bridge
                               (remove (comp :volatile :method/flags))
                               (remove (comp #{"<init>"} :method/name)))
-        ctx (-> ctx (process-static-init bc))]
+        ctx (-> ctx (assoc :class-name name) (process-static-init bc))]
     {:op :deftype
      :name name
      :tname (.replaceFirst name "\\." "/")
@@ -1170,13 +1170,15 @@
      :methods (process-methods ctx instance-methods)
      :interfaces interfaces}))
 
-(defn decompile-reify [{:class/keys [interfaces methods] :as bc} ctx]
+(defn decompile-reify [{:class/keys [interfaces methods name] :as bc} ctx]
   (let [instance-methods (->> methods
                               (remove (comp :static :method/flags))
                               ;; bridge
                               (remove (comp :volatile :method/flags))
                               (remove (comp #{"<init>" "meta" "withMeta"} :method/name)))
-        ctx (-> ctx (process-static-init bc))]
+        ctx (-> ctx
+                (assoc :class-name name)
+                (process-static-init bc))]
     {:op :reify
      :methods (process-methods ctx instance-methods)
      :interfaces (vec (remove #{"clojure.lang.IObj"} interfaces))}))
