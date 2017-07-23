@@ -21,6 +21,7 @@
 
 (def initial-local-ctx {:stack []
                         :pc 0
+                        :impure-loops {}
                         :local-variable-table #{}
                         :exception-table #{}})
 
@@ -172,7 +173,42 @@
         (update :stack conj expr)
         (assoc :pc ret-label))))
 
-(defn process-insns [{:keys [pc jump-table exception-table terminate?]
+;; doesn't handle wrapping try/catch/finally
+(defn will-ret? [ctx label]
+  (loop [off 0]
+    (let [{:insn/keys [name] :as insn} (maybe-insn-at ctx {:label label :offset off})]
+      (cond
+        (not insn)
+        true
+
+        (or (#{"invokestatic" "checkcast"} name)
+            (isa? bc/insn-h (keyword name) ::bc/no-op)
+            (isa? bc/insn-h (keyword name) ::bc/return-value)
+            (isa? bc/insn-h (keyword name) ::bc/invoke-instance-method))
+        (recur (inc off))
+
+        :else
+
+        false))))
+
+(defn process-impure-loop [{:keys [impure-loops pc] :as ctx}]
+  (let [end-label (impure-loops pc)
+        {body-stack :stack body-stmnts :statements} (process-insns (-> ctx
+                                                                       (assoc :loop-args [])
+                                                                       (update :impure-loops dissoc pc)
+                                                                       (assoc :terminate? (pc= end-label))
+                                                                       (assoc :statements [])))
+
+        statement? (not (will-ret? ctx end-label))
+        body (->do (conj body-stmnts (peek body-stack)))]
+    (-> ctx
+        (assoc :pc end-label)
+        (update (if statement? :statements :stack)
+                conj {:op :loop
+                      :local-variables []
+                      :body body}))))
+
+(defn process-insns [{:keys [pc jump-table exception-table terminate? impure-loops]
                       :as ctx}]
   (cond
     (or (not (get jump-table pc))
@@ -181,6 +217,9 @@
 
     (start-try-block-info pc exception-table)
     (recur (process-try-block ctx))
+
+    (contains? impure-loops pc)
+    (recur (process-impure-loop ctx))
 
     :else
     (let [insn (curr-insn ctx)]
@@ -445,8 +484,8 @@
                                                                              (assoc :loop-args (mapv :local-variable args))
                                                                              (assoc :terminate? (pc= end-label))
                                                                              (assoc :statements [])))
-              statement? (not= "areturn" (:insn/name (insn-at ctx {:label end-label})))
-              ;; WIP if statement is peek body stack correct?
+
+              statement? (not (will-ret? ctx end-label))
               body (->do (conj body-stmnts (peek body-stack)))]
           (-> ctx
               (assoc :pc end-label)
@@ -944,6 +983,39 @@
                                (sort-by :index)
                                (vec))))))
 
+(defn collect-impure-loops-data [{:keys [insns] :as ctx}]
+  (loop [[insn & insns] insns data {}]
+    (if insn
+      (if (and (= "goto" (:insn/name insn))
+               (not (pos? (:insn/jump-offset insn)))
+               (not (isa? bc/insn-h (-> ctx
+                                        (assoc :pc (:insn/label insn))
+                                        (insn-at {:offset -1})
+                                        :insn/name
+                                        keyword)
+                          ::bc/store-insn)))
+        (let [ctx-at-recur (assoc ctx :pc (:insn/label insn))
+              end-loop (cond (and (= "goto" (:insn/name (insn-at ctx-at-recur {:offset +1})))
+                                  (pos? (:insn/jump-offset (insn-at ctx-at-recur {:offset +1}))))
+                             (goto-label (insn-at ctx-at-recur {:offset +1}))
+
+                             (or (= "return" (:insn/name (insn-at ctx-at-recur {:offset +1})))
+                                 (will-ret? ctx (:insn/label (insn-at ctx-at-recur {:offset +1}))))
+                             (:insn/label(insn-at ctx-at-recur {:offset +1}))
+
+                             (and (= "goto" (:ins/name (insn-at ctx-at-recur {:offset -1})))
+                                  (pos? (:insn/jump-offset (insn-at ctx-at-recur {:offset -1}))))
+                             (goto-label (insn-at ctx-at-recur {:offset -1}))
+
+                             (and (= "pop" (:insn/name (insn-at ctx-at-recur {:offset -1})))
+                                  (= "goto" (:insn/name (insn-at ctx-at-recur {:offset -2})))
+                                  (pos? (:insn/jump-offset (insn-at ctx-at-recur {:offset -2}))))
+
+                             (goto-label (insn-at ctx-at-recur {:offset -2})))]
+          (recur insns (assoc data (goto-label insn) end-loop)))
+        (recur insns data))
+      (assoc ctx :impure-loops data))))
+
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags exception-table]}]
   (-> ctx
       (merge initial-local-ctx {:jump-table jump-table})
@@ -962,6 +1034,7 @@
                                                 :end-label (-> bytecode peek :insn/label)})
             (update :loop-args #(vec (rest %)))))
       (assoc :insns bytecode)
+      (collect-impure-loops-data)
       (process-insns)))
 
 (defn process-static-init [{:keys [bc-for] :as ctx} {:class/keys [methods]}]
