@@ -801,10 +801,14 @@
                                   :ex ex}))))
 
 
-(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))
-        [target & args] (peek-n stack argc)]
+        [target & args] (peek-n stack argc)
+        ?deftype-ast (when (= "importClass" target-name)
+                       (when-let [bc (bc-for (-> args first :args first :val))]
+                         (when (some #{"clojure.lang.IType" "clojure.lang.IRecord"} (:class/interfaces bc))
+                           (bc->ast bc {:bc-for bc-for}))))]
     (-> ctx
         (update :stack pop-n argc)
         (update (if (= "void" target-ret-type) :statements :stack)
@@ -813,7 +817,9 @@
                       :target target
                       :arg-types target-arg-types
                       :target-class target-class
-                      :args args}))))
+                      :args args})
+        (cond-> ?deftype-ast
+          (update :statements conj ?deftype-ast)))))
 
 (defmethod process-insn :putstatic [{:keys [stack class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name]} pool-element
@@ -1149,6 +1155,7 @@
           :body (:ast (process-method-insns ctx method))})
        (into [])))
 
+;; deftypes with `this` as a field break
 (defn decompile-deftype [{:class/keys [fields interfaces methods ^String name] :as bc} ctx]
   (let [fields (->> (for [{:field/keys [name flags]} fields]
                       {:name name
