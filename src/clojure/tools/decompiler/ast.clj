@@ -703,7 +703,8 @@
                                                                        :statements []
                                                                        :terminate? (some-fn (pc= end-label)
                                                                                             (fn [ctx]
-                                                                                              (= "lcmp" (:insn/name (curr-insn ctx))))))
+                                                                                              (and (= "lcmp" (:insn/name (curr-insn ctx)))
+                                                                                                   (= default-label (goto-label (insn-at ctx {:offset 1})))))))
                                                                 (process-insns))]
 
                            (if (= "lcmp" (:insn/name (curr-insn test-ctx)))
@@ -713,10 +714,9 @@
                                                        :statements []
                                                        :terminate? (pc= end-label))
                                                 (process-insns))]
-                               [:int match test  (expr+statements expr-ctx) (:recur? expr-ctx)])
+                               [:int match test (expr+statements expr-ctx) (:recur? expr-ctx)])
 
-                             ;; huh?
-                             [:int match match (peek stack) (:recur? test-ctx)])))))
+                             [:int match {:op :const :val match} (peek stack) (:recur? test-ctx)])))))
 
                    (into []))
 
