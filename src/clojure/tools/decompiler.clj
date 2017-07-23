@@ -46,12 +46,14 @@
             absolute-filename
             bc/analyze-classfile)))
 
-(defn decompile [{:keys [input-path output-path]}]
+(defn decompile [{:keys [input-path output-path classes]}]
   (let [files (filter classfile? (map str (file-seq (io/file input-path))))
-        inits (filter (fn [^String i] (.endsWith i "__init.class")) files)
         classname->path (into {} (map (fn [^String classfile]
                                         [(cname classfile input-path) classfile])
-                                      files))]
+                                      files))
+        inits (if classes
+                (mapv classname->path classes)
+                (filter (fn [^String i] (.endsWith i "__init.class")) files))]
 
     (doseq [init inits
             :let [cname (cname init input-path)
