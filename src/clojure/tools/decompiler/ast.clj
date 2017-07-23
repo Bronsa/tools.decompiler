@@ -993,16 +993,25 @@
      :body ast}))
 
 (defn decompile-fn-methods [{:keys [fn-name] :as ctx} {:class/keys [methods]}]
-  (let [invokes (u/find-methods methods {:method/name "invoke"})
-        invokes-static (u/find-methods methods {:method/name "invokeStatic"})
+  (let [invokes-static (u/find-methods methods {:method/name "invokeStatic"})
+        invokes-prim (u/find-methods methods {:method/name "invokePrim"})
+        invokes (u/find-methods methods {:method/name "invoke"})
         invoke-vararg (u/find-method methods {:method/name "doInvoke"})
         invoke-methods (-> invokes-static
+                           (into (for [{:method/keys [arg-types] :as invoke} invokes-prim
+                                       :let [argc (count arg-types)]
+                                       :when (empty? (filter (fn [{:method/keys [arg-types]}]
+                                                               (= (count arg-types) argc))
+                                                             invokes-static))]
+                                   invoke)))
+
+        invoke-methods (-> invoke-methods
                            (into (for [{:method/keys [arg-types] :as invoke} (into invokes (when invoke-vararg
                                                                                              [invoke-vararg]))
                                        :let [argc (count arg-types)]
                                        :when (empty? (filter (fn [{:method/keys [arg-types]}]
                                                                (= (count arg-types) argc))
-                                                             invokes-static))]
+                                                             invoke-methods))]
                                    invoke)))
         methods-asts (mapv (partial decompile-fn-method ctx) invoke-methods)]
     {:op :fn
