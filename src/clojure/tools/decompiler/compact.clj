@@ -47,6 +47,19 @@
        (clojure.core/let [?z ?x] . ?body)))
    (clojure.core/when-let [?z ?y] . ?body)]
 
+  [(fn* . ?body) (clojure.core/fn . ?body)]
+
+  [((clojure.core/fn ?n ([] . ?body))) (do . ?body)]
+
+  (let [?body1 (l/lvar)
+        ?body2 (l/lvar)]
+    [#(l/== % (l/llist 'do (l/llist 'do ?body1) ?body2))
+     #(l/project [?body1 ?body2]
+                 (l/== % `(do ~@?body1 ~@?body2)))])
+
+  [(.bindRoot (var ?var) (clojure.core/fn ?name . ?body))
+   (clojure.core/defn ?name . ?body)]
+
   (let [?argv1 (l/lvar)
         ?argv2 (l/lvar)
         ?body (l/lvar)]
