@@ -183,6 +183,7 @@
 (defn class-methods [^JavaClass klass]
   (->> klass
        (.getMethods)
+       (remove #(.isAbstract ^Method %))
        (mapv (partial parse-method klass))))
 
 (defn analyze-classfile [filename]
