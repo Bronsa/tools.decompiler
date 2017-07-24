@@ -110,7 +110,11 @@
             ->
             `(do ~@?&body)]
 
+           [(`identical? ?x nil) -> `(nil? ~?x)]
+           [(`identical? nil ?x) -> `(nil? ~?x)]
+
            [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) -> `(lazy-seq ~@?&body)]
+           [('clojure.lang.Delay. (`fn ?_ ([] ?&body))) -> `(delay ~@?&body)]
 
            [(if (.equals ?ns ''clojure.core)
               nil
@@ -147,15 +151,30 @@
               (`when (`< ?n ?c)
                ?&body)))
             {?body [#(compact [%] [(recur (`+ ?a 1)) -> true])]}
-            -> `(dotimes [~?n ~?t]
-                  ~@(butlast ?&body))]
+            ->
+            `(dotimes [~?n ~?t]
+               ~@(butlast ?&body))]
 
            [(`let [?x ?y]
              (if ?x
                (`let [?z ?x] ?&body)
                ?else))
+            {?x [#(-> % name (.startsWith "temp__"))]}
             ->
             `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
+
+           [(`let [?t ?x] (if ?t ?y ?t))
+            {?t [#(-> % name (.startsWith "and__"))]}
+            ->
+            `(and ~?x ~?y)]
+           [(`and ?x (`and ?y ?z)) ->  `(and ~?x ~?y ~?z)]
+
+           [(`let [?t ?x] (if ?t ?t ?y))
+            {?t [#(-> % name (.startsWith "or__"))]}
+            ->
+            `(or ~?x ~?y)]
+           [(`or ?x (`or ?y ?z)) ->  `(or ~?x ~?y ~?z)]
+
 
            [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
 
