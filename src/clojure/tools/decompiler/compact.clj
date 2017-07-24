@@ -19,27 +19,34 @@
       (swap! !occurs assoc sym #{})
       sym)))
 
-(defn compile-pattern [form !occurs]
+(defn maybe-guard [sym guards]
+  (if-let [sym-guards (get guards sym)]
+    (list sym :guard sym-guards)
+    sym))
+
+(defn compile-pattern [form guards !occurs]
   (cond
 
     (seq? form)
     (if (and (= 'quote (first form))
              (symbol? (second form)))
       [form]
-      [(list (vec (mapcat #(compile-pattern % !occurs) form)) :seq)])
+      [(list (vec (mapcat #(compile-pattern % guards !occurs) form)) :seq)])
 
     (vector? form)
-    [(vec (mapcat #(compile-pattern % !occurs) form))]
+    [(vec (mapcat #(compile-pattern % guards !occurs) form))]
 
     (symbol? form)
 
     (if (= \? (first (name form)))
-      (if (= \& (second (name form)))
-        ['& (if (and (= \_ (nth (name form) 2))
-                     (= 3 (count (name form))))
-              '_
-              (register! form !occurs))]
-        [(register! form !occurs)])
+      (let [fname (name form)
+            ]
+        (if (= \& (second fname))
+          ['& (if (and (= \_ (nth fname 2))
+                       (= 3 (count fname)))
+                '_
+                (maybe-guard (register! form !occurs) guards))]
+          [(maybe-guard (register! form !occurs) guards)]))
       [(list 'quote form)])
 
     :else
@@ -53,11 +60,14 @@
 (def backtrack-all (Exception.))
 
 (defn compile-patterns [patterns]
-  (->> (for [[pattern -> replacement] patterns
-             :let [!occurs (atom {})]]
-         [(compile-pattern pattern !occurs) `(if ~(assert-unify @!occurs)
-                                               ~replacement
-                                               (throw backtrack-all))])
+  (->> (for [pattern patterns
+             :let [[pattern guards -> replacement] (if (map? (second pattern))
+                                                     pattern
+                                                     [(first pattern) {} nil (last pattern)])
+                   !occurs (atom {})]]
+         [(compile-pattern pattern guards !occurs) `(if ~(assert-unify @!occurs)
+                                                      ~replacement
+                                                      (throw backtrack-all))])
        (mapcat identity)))
 
 (defmacro compact [expr & patterns]
