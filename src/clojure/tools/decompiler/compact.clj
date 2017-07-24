@@ -99,7 +99,11 @@
             ->
             `(with-bindings ~?binds ~?body)]
 
-           ;; [(with-bindings {'clojure.lang.Compiler/LOADER _} ?&body) -> `(do ~@?&body)]
+           [(`with-bindings ?bindings ?&body)
+            {?bindings [#(contains? % 'clojure.lang.Compiler/LOADER)
+                        #(= 1 (count %))]}
+            ->
+            `(do ~@?&body)]
 
            [(if (.equals ?ns ''clojure.core) nil (do ('clojure.lang.LockingTransaction/runInTransaction ?&_) nil)) -> nil]
 
@@ -131,9 +135,10 @@
            [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
 
            [(.setMeta ?ref ?meta) -> `(reset-meta! ~?ref ~?meta)]
-           ;; [(`reset-meta! ?var {:arglists _ :line _ :column _ :file _}) -> nil]
+           [(`reset-meta! ?var ?meta) {?meta [map?
+                                              #(every? % #{:line :column :file})]} -> nil]
 
-           ;; [(.withMeta (`list ?&body) {:line _ :column _}) -> (list ~@?&body)]
+           [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} -> (list ~@?&body)]
 
            [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~?name ~@?&body)]))
 
