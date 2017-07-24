@@ -23,7 +23,10 @@
   (cond
 
     (seq? form)
-    [(list (vec (mapcat #(compile-pattern % !occurs) form)) :seq)]
+    (if (and (= 'quote (first form))
+             (symbol? (second form)))
+      [form]
+      [(list (vec (mapcat #(compile-pattern % !occurs) form)) :seq)])
 
     (vector? form)
     [(vec (mapcat #(compile-pattern % !occurs) form))]
