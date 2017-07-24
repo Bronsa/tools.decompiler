@@ -110,6 +110,8 @@
             ->
             `(do ~@?&body)]
 
+           [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) -> `(lazy-seq ~@?&body)]
+
            [(if (.equals ?ns ''clojure.core)
               nil
               (do
