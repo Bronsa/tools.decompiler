@@ -39,8 +39,7 @@
     (symbol? form)
 
     (if (= \? (first (name form)))
-      (let [fname (name form)
-            ]
+      (let [fname (name form)]
         (if (= \& (second fname))
           ['& (if (and (= \_ (nth fname 2))
                        (= 3 (count fname)))
@@ -105,7 +104,8 @@
      `(with-bindings ~?binds ~?body)]
 
     [(`with-bindings ?bindings ?&body)
-     {?bindings [#(contains? % 'clojure.lang.Compiler/LOADER)
+     {?bindings [map?
+                 #(contains? % 'clojure.lang.Compiler/LOADER)
                  #(= 1 (count %))]}
      ->
      `(do ~@?&body)]
@@ -181,14 +181,17 @@
      {?t [#(-> % name (.startsWith "or__"))]}
      ->
      `(or ~?x ~?y)]
-    [(`or ?x (`or ?y ?z)) ->  `(or ~?x ~?y ~?z)]
+    [(`or ?x (`or ?y ?z)) -> `(or ~?x ~?y ~?z)]
 
 
     [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
 
+    [(import* ?klass) -> `(import ~(symbol ?klass))]
+
     [(.setMeta ?ref ?meta) -> `(reset-meta! ~?ref ~?meta)]
     [(`reset-meta! ?var ?meta) {?meta [map?
-                                       #(every? % #{:line :column :file})]} -> nil]
+                                       (some-fn #(every? % #{:line :column :file})
+                                                #(every? % #{:column :arglists}))]} -> nil]
 
     [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} -> (list ~@?&body)]
 
