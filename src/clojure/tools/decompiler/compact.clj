@@ -101,17 +101,16 @@
 
            [(loop* ?&l) -> `(loop ~@?&l)]
 
-           ;; [(`loop [?seq (seq ?b) ?chunk nil ?count 0 ?i 0]
-           ;;   (if (< ?i ?count)
-           ;;     (`let [?a ('.nth ?chunk ?i)]
-           ;;      (do ?&body))
-           ;;     (`when-let [?seq (seq ?seq)]
-           ;;      (if (chunked-seq? ?seq)
-           ;;        (`let [?c (chunk-first ?seq)]
-           ;;         (recur (chunk-rest ?seq) ?c (count ?c) 0))
-           ;;        (`let [?a (`first ?seq)] ?&_)))))
-           ;;  ->
-           ;;  `(doseq [~?a ~?b] ~@(butlast ?&body))]
+           [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
+             (if (`< ?i ?count)
+               (`let [?a ('.nth ?chunk ?i)]
+                ?&body)
+               (`when-let [?seq (`seq ?seq)]
+                (if (`chunked-seq? ?seq)
+                  (`let [?c (`chunk-first ?seq)]
+                    (recur ?&_))
+                 (`let [?a (`first ?seq)] ?&_)))))
+            -> `(doseq [~?a ~?b] ~@(butlast ?&body))]
 
            [(`let [?x ?y]
              (if ?x
