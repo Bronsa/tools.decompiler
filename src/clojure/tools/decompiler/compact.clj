@@ -88,6 +88,7 @@
            [(let* ?binds ?&body) -> `(let ~?binds ~@?&body)]
            [(if ?test (do ?&then)) -> `(when ~?test ~@?&then)]
            [(if ?test ?then nil) ->`(when ~?test ~?then)]
+           [(`when ?test (do ?&then)) -> `(when ~?test ~@?&then)]
            [(`let ?bindings (do ?&body)) -> `(let ~?bindings ~@?&body)]
            [(`fn (?bindings (do ?&body))) -> `(fn (~?bindings ~@?&body))]
            [(do (do ?&body)) -> `(do ~@?&body)]
@@ -136,10 +137,19 @@
                  (`let [?a (`first ?seq)] ?&_)))))
             -> `(doseq [~?a ~?b] ~@(butlast ?&body))]
 
+           [(`let [?c ?t]
+             (`loop [?n 0]
+              (`when (`< ?n ?c)
+               ?&body)))
+            {?body [#(compact [%] [(recur (`+ ?a 1)) -> true])]}
+            -> `(dotimes [~?n ~?t]
+                  ~@(butlast ?&body))]
+
            [(`let [?x ?y]
              (if ?x
                (`let [?z ?x] ?&body)
                ?else))
+            ->
             `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
 
            [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
