@@ -155,6 +155,14 @@
             `(dotimes [~?n ~?t]
                ~@(butlast ?&body))]
 
+           [(`let [?l ?lock]
+             (try
+               (do (monitor-enter ?l)
+                   ?&body)
+               (finally ?&_)))
+            ->
+            `(locking ~?lock ~@?&body)]
+
            [(`let [?x ?y]
              (if ?x
                (`let [?z ?x] ?&body)
