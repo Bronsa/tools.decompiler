@@ -38,7 +38,10 @@
 
     (if (= \? (first (name form)))
       (if (= \& (second (name form)))
-        ['& (register! form !occurs)]
+        ['& (if (and (= \_ (nth (name form) 2))
+                     (= 3 (count (name form))))
+              '_
+              (register! form !occurs))]
         [(register! form !occurs)])
       [(list 'quote form)])
 
