@@ -98,10 +98,24 @@
 
     [(do (`push-thread-bindings ?binds)
          (try
-           ?body
-           (finally (`pop-thread-bindings))))
+           ?&body))
+     {?&body #(= `(finally (pop-thread-bindings)) (last %))}
      :->
-     `(with-bindings ~?binds ~?body)]
+     (let [?&body (butlast ?&body)]
+       (cond
+
+         (map? ?binds)
+         (if (every? #(and (seq? %) (= 'var (first %))) (keys ?binds))
+           `(binding ~(vec (mapcat (fn [[[_ var] init]] [var init]) ?binds)) ~@?&body)
+           `(with-bindings ~?binds ~@?&body))
+
+         (and (seq? ?binds) (= `hash-map (first ?binds)))
+         (if (every? #(and (seq? %) (= 'var (first %))) (take-nth 2 (rest ?binds)))
+           `(binding ~(vec (mapcat (fn [[[_ var] init]] [var init]) (partition 2 (rest ?binds)))) ~@?&body)
+           `(with-bindings ~?binds ~@?&body))
+
+         :else
+         `(with-bindings ~?binds ~@?&body)))]
 
     [(`with-bindings ?bindings ?&body)
      {?bindings [map?
@@ -170,6 +184,24 @@
      {?x [#(-> % name (.startsWith "temp__"))]}
      :->
      `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
+
+    [(`let [?x ?y]
+      (if (`nil? ?x)
+        nil
+        (`let [?z ?x]
+         ?&body)))
+     {?x [#(-> % name (.startsWith "temp__"))]}
+     :->
+     `(when-some [~?z ~?y] ~@?&body)]
+
+    [(`let [?x ?y]
+      (if (`nil? ?x)
+        ?else
+        (`let [?z ?x]
+         ?&body)))
+     {?x [#(-> % name (.startsWith "temp__"))]}
+     :->
+     `(if-some [~?z ~?y] (do ~@?&body) ~?else)]
 
     [(`let [?t ?x] (if ?t ?y ?t))
      {?t [#(-> % name (.startsWith "and__"))]}
