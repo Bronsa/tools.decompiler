@@ -73,8 +73,60 @@
 
 (defn macrocompact-step [expr]
   (compact expr
-    [(`let [?a ?b] (`let ?binds ?&body)) -> `(let [~?a ~?b ~@?binds] ~@?&body)]
-    [(fn* ?&body) -> `(fn ~@?&body)]))
+           [(`let [?a ?b] (`let ?binds ?&body)) -> `(let [~?a ~?b ~@?binds] ~@?&body)]
+           [(fn* ?&body) -> `(fn ~@?&body)]
+           [(let* ?binds ?&body) -> `(let ~?binds ~@?&body)]
+           [(if ?test (do ?&then)) -> `(when ~?test ~@?&then)]
+           [(if ?test ?then nil) ->`(when ~?test ~?then)]
+
+           [('clojure.lang.Var/pushThreadBindings ?binds) -> `(push-thread-bindings ~?binds)]
+           [('clojure.lang.Var/popThreadBindings) -> `(pop-thread-bindings)]
+
+           [(do (`push-thread-bindings ?binds)
+                (try
+                  ?body
+                  (finally (`pop-thread-bindings))))
+            ->
+            `(with-bindings ~?binds ~?body)]
+
+           ;; [(with-bindings {'clojure.lang.Compiler/LOADER _} ?&body) -> `(do ~@?&body)]
+
+           [(if (.equals ?ns ''clojure.core) nil (do ('clojure.lang.LockingTransaction/runInTransaction ?&_) nil)) -> nil]
+
+           [(`let [?x ?y]
+             (`when ?x
+              (`let [?z ?x] ?&body)))
+            ->
+            `(when-let [~?z ~?y] ~@?&body)]
+
+           [(loop* ?&l) -> `(loop ~@?&l)]
+
+           ;; [(`loop [?seq (seq ?b) ?chunk nil ?count 0 ?i 0]
+           ;;   (if (< ?i ?count)
+           ;;     (`let [?a ('.nth ?chunk ?i)]
+           ;;      (do ?&body))
+           ;;     (`when-let [?seq (seq ?seq)]
+           ;;      (if (chunked-seq? ?seq)
+           ;;        (`let [?c (chunk-first ?seq)]
+           ;;         (recur (chunk-rest ?seq) ?c (count ?c) 0))
+           ;;        (`let [?a (`first ?seq)] ?&_)))))
+           ;;  ->
+           ;;  `(doseq [~?a ~?b] ~@(butlast ?&body))]
+
+           [(`let [?x ?y]
+             (if ?x
+               (`let [?z ?x] ?&body)
+               ?else))
+            `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
+
+           [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
+
+           [(.setMeta ?ref ?meta) -> `(reset-meta! ~?ref ~?meta)]
+           ;; [(`reset-meta! ?var {:arglists _ :line _ :column _ :file _}) -> nil]
+
+           ;; [(.withMeta (`list ?&body) {:line _ :column _}) -> (list ~@?&body)]
+
+           [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~?name ~@?&body)]))
 
 (defn macrocompact [source]
   (w/postwalk
