@@ -83,116 +83,116 @@
 
 (defn macrocompact-step [expr]
   (compact expr
-           [(`let [?a ?b] (`let ?binds ?&body)) -> `(let [~?a ~?b ~@?binds] ~@?&body)]
-           [(fn* ?&body) -> `(fn ~@?&body)]
-           [(let* ?binds ?&body) -> `(let ~?binds ~@?&body)]
-           [(if ?test (do ?&then)) -> `(when ~?test ~@?&then)]
-           [(if ?test ?then nil) ->`(when ~?test ~?then)]
-           [(`when ?test (do ?&then)) -> `(when ~?test ~@?&then)]
-           [(`let ?bindings (do ?&body)) -> `(let ~?bindings ~@?&body)]
-           [(`fn (?bindings (do ?&body))) -> `(fn (~?bindings ~@?&body))]
-           [(do (do ?&body)) -> `(do ~@?&body)]
+    [(`let [?a ?b] (`let ?binds ?&body)) -> `(let [~?a ~?b ~@?binds] ~@?&body)]
+    [(fn* ?&body) -> `(fn ~@?&body)]
+    [(let* ?binds ?&body) -> `(let ~?binds ~@?&body)]
+    [(if ?test (do ?&then)) -> `(when ~?test ~@?&then)]
+    [(if ?test ?then nil) ->`(when ~?test ~?then)]
+    [(`when ?test (do ?&then)) -> `(when ~?test ~@?&then)]
+    [(`let ?bindings (do ?&body)) -> `(let ~?bindings ~@?&body)]
+    [(`fn (?bindings (do ?&body))) -> `(fn (~?bindings ~@?&body))]
+    [(do (do ?&body)) -> `(do ~@?&body)]
 
 
-           [('clojure.lang.Var/pushThreadBindings ?binds) -> `(push-thread-bindings ~?binds)]
-           [('clojure.lang.Var/popThreadBindings) -> `(pop-thread-bindings)]
+    [('clojure.lang.Var/pushThreadBindings ?binds) -> `(push-thread-bindings ~?binds)]
+    [('clojure.lang.Var/popThreadBindings) -> `(pop-thread-bindings)]
 
-           [(do (`push-thread-bindings ?binds)
-                (try
-                  ?body
-                  (finally (`pop-thread-bindings))))
-            ->
-            `(with-bindings ~?binds ~?body)]
+    [(do (`push-thread-bindings ?binds)
+         (try
+           ?body
+           (finally (`pop-thread-bindings))))
+     ->
+     `(with-bindings ~?binds ~?body)]
 
-           [(`with-bindings ?bindings ?&body)
-            {?bindings [#(contains? % 'clojure.lang.Compiler/LOADER)
-                        #(= 1 (count %))]}
-            ->
-            `(do ~@?&body)]
+    [(`with-bindings ?bindings ?&body)
+     {?bindings [#(contains? % 'clojure.lang.Compiler/LOADER)
+                 #(= 1 (count %))]}
+     ->
+     `(do ~@?&body)]
 
-           [(`identical? ?x nil) -> `(nil? ~?x)]
-           [(`identical? nil ?x) -> `(nil? ~?x)]
+    [(`identical? ?x nil) -> `(nil? ~?x)]
+    [(`identical? nil ?x) -> `(nil? ~?x)]
 
-           [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) -> `(lazy-seq ~@?&body)]
-           [('clojure.lang.Delay. (`fn ?_ ([] ?&body))) -> `(delay ~@?&body)]
+    [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) -> `(lazy-seq ~@?&body)]
+    [('clojure.lang.Delay. (`fn ?_ ([] ?&body))) -> `(delay ~@?&body)]
 
-           [(if (.equals ?ns ''clojure.core)
-              nil
-              (do
-                ('clojure.lang.LockingTransaction/runInTransaction ?&_)
-                nil))
-            ->
-            nil]
+    [(if (.equals ?ns ''clojure.core)
+       nil
+       (do
+         ('clojure.lang.LockingTransaction/runInTransaction ?&_)
+         nil))
+     ->
+     nil]
 
-           [(if ?test1 ?then1 (`when ?test2 ?then2)) -> `(cond ~?test1 ~?then1 ~?test2 ~?then2)]
-           [(if ?test1 ?then1 (`cond ?&body)) -> `(cond ~?test1 ~?then1 ~@?&body)]
+    [(if ?test1 ?then1 (`when ?test2 ?then2)) -> `(cond ~?test1 ~?then1 ~?test2 ~?then2)]
+    [(if ?test1 ?then1 (`cond ?&body)) -> `(cond ~?test1 ~?then1 ~@?&body)]
 
-           [(`let [?x ?y]
-             (`when ?x
-              (`let [?z ?x] ?&body)))
-            ->
-            `(when-let [~?z ~?y] ~@?&body)]
+    [(`let [?x ?y]
+      (`when ?x
+       (`let [?z ?x] ?&body)))
+     ->
+     `(when-let [~?z ~?y] ~@?&body)]
 
-           [(loop* ?&l) -> `(loop ~@?&l)]
+    [(loop* ?&l) -> `(loop ~@?&l)]
 
-           [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
-             (if (`< ?i ?count)
-               (`let [?a ('.nth ?chunk ?i)]
-                ?&body)
-               (`when-let [?seq (`seq ?seq)]
-                (if (`chunked-seq? ?seq)
-                  (`let [?c (`chunk-first ?seq)]
-                    (recur ?&_))
-                 (`let [?a (`first ?seq)] ?&_)))))
-            -> `(doseq [~?a ~?b] ~@(butlast ?&body))]
+    [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
+      (if (`< ?i ?count)
+        (`let [?a ('.nth ?chunk ?i)]
+         ?&body)
+        (`when-let [?seq (`seq ?seq)]
+         (if (`chunked-seq? ?seq)
+           (`let [?c (`chunk-first ?seq)]
+            (recur ?&_))
+           (`let [?a (`first ?seq)] ?&_)))))
+     -> `(doseq [~?a ~?b] ~@(butlast ?&body))]
 
-           [(`let [?c ?t]
-             (`loop [?n 0]
-              (`when (`< ?n ?c)
-               ?&body)))
-            {?body [#(compact [%] [(recur (`+ ?a 1)) -> true])]}
-            ->
-            `(dotimes [~?n ~?t]
-               ~@(butlast ?&body))]
+    [(`let [?c ?t]
+      (`loop [?n 0]
+       (`when (`< ?n ?c)
+        ?&body)))
+     {?body [#(compact [%] [(recur (`+ ?a 1)) -> true])]}
+     ->
+     `(dotimes [~?n ~?t]
+        ~@(butlast ?&body))]
 
-           [(`let [?l ?lock]
-             (try
-               (do (monitor-enter ?l)
-                   ?&body)
-               (finally ?&_)))
-            ->
-            `(locking ~?lock ~@?&body)]
+    [(`let [?l ?lock]
+      (try
+        (do (monitor-enter ?l)
+            ?&body)
+        (finally ?&_)))
+     ->
+     `(locking ~?lock ~@?&body)]
 
-           [(`let [?x ?y]
-             (if ?x
-               (`let [?z ?x] ?&body)
-               ?else))
-            {?x [#(-> % name (.startsWith "temp__"))]}
-            ->
-            `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
+    [(`let [?x ?y]
+      (if ?x
+        (`let [?z ?x] ?&body)
+        ?else))
+     {?x [#(-> % name (.startsWith "temp__"))]}
+     ->
+     `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
 
-           [(`let [?t ?x] (if ?t ?y ?t))
-            {?t [#(-> % name (.startsWith "and__"))]}
-            ->
-            `(and ~?x ~?y)]
-           [(`and ?x (`and ?y ?z)) ->  `(and ~?x ~?y ~?z)]
+    [(`let [?t ?x] (if ?t ?y ?t))
+     {?t [#(-> % name (.startsWith "and__"))]}
+     ->
+     `(and ~?x ~?y)]
+    [(`and ?x (`and ?y ?z)) ->  `(and ~?x ~?y ~?z)]
 
-           [(`let [?t ?x] (if ?t ?t ?y))
-            {?t [#(-> % name (.startsWith "or__"))]}
-            ->
-            `(or ~?x ~?y)]
-           [(`or ?x (`or ?y ?z)) ->  `(or ~?x ~?y ~?z)]
+    [(`let [?t ?x] (if ?t ?t ?y))
+     {?t [#(-> % name (.startsWith "or__"))]}
+     ->
+     `(or ~?x ~?y)]
+    [(`or ?x (`or ?y ?z)) ->  `(or ~?x ~?y ~?z)]
 
 
-           [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
+    [((`fn ?n ([] ?&body))) -> `(do ~@?&body)]
 
-           [(.setMeta ?ref ?meta) -> `(reset-meta! ~?ref ~?meta)]
-           [(`reset-meta! ?var ?meta) {?meta [map?
-                                              #(every? % #{:line :column :file})]} -> nil]
+    [(.setMeta ?ref ?meta) -> `(reset-meta! ~?ref ~?meta)]
+    [(`reset-meta! ?var ?meta) {?meta [map?
+                                       #(every? % #{:line :column :file})]} -> nil]
 
-           [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} -> (list ~@?&body)]
+    [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} -> (list ~@?&body)]
 
-           [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~?name ~@?&body)]))
+    [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~?name ~@?&body)]))
 
 (defn macrocompact [source]
   (w/postwalk
