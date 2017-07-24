@@ -70,15 +70,19 @@
        (mapcat identity)))
 
 (defmacro compact [expr & patterns]
-  `(let [expr# ~expr]
-     (try
-       (m/match [expr#]
-         ~@(compile-patterns patterns)
-         :else expr#)
-       (catch Exception e#
-         (if (identical? e# backtrack-all)
-           expr#
-           (throw e#))))))
+  (let [_expr (gensym)
+        [patterns else] (if (= :else (last (butlast patterns)))
+                          [(-> patterns butlast butlast) (last patterns)]
+                          [patterns _expr])]
+    `(let [~_expr ~expr]
+       (try
+         (m/match [~_expr]
+                  ~@(compile-patterns patterns)
+                  :else ~else)
+         (catch Exception e#
+           (if (identical? e# backtrack-all)
+             ~else
+             (throw e#)))))))
 
 (defn macrocompact-step [expr]
   (compact expr
@@ -129,6 +133,9 @@
 
     [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) :-> `(lazy-seq ~@?&body)]
     [('clojure.lang.Delay. (`fn ?_ ([] ?&body))) :-> `(delay ~@?&body)]
+    [(`bound-fn* (`fn ?_ ([] ?&body))) :-> `(bound-fn ~@?&body)]
+
+    [('.reset ?v (?f ('.deref ?v) ?&args)) :-> `(vswap! ~?v ~?f ~@?&args)]
 
     [(if (.equals ?ns ''clojure.core)
        nil
@@ -149,6 +156,13 @@
 
     [(loop* ?&l) :-> `(loop ~@?&l)]
 
+    [(`let [?a ?a] (try ?&body))
+     {?&body #(compact [%]
+                [(finally ('.close ?x)) :-> true]
+                :else false)}
+     :-> `(with-open [~?a ?b]
+            ~@(butlast ?&body))]
+
     [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
       (if (`< ?i ?count)
         (`let [?a ('.nth ?chunk ?i)]
@@ -164,7 +178,7 @@
       (`loop [?n 0]
        (`when (`< ?n ?c)
         ?&body)))
-     {?body [#(compact [%] [(recur (`+ ?a 1)) :-> true])]}
+     {?body [#(compact [%] [(recur (`+ ?a 1)) :-> true] :else false)]}
      :->
      `(dotimes [~?n ~?t]
         ~@(butlast ?&body))]
