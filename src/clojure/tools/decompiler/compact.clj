@@ -31,9 +31,6 @@
     (vector? form)
     [(vec (mapcat #(compile-pattern % !occurs) form))]
 
-    (map? form)
-    [(reduce-kv (fn [m k v] (assoc m (compile-pattern k !occurs) (compile-pattern v !occurs))) {} form)]
-
     (symbol? form)
 
     (if (= \? (first (name form)))
