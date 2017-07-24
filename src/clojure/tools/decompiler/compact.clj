@@ -118,6 +118,9 @@
             ->
             nil]
 
+           [(if ?test1 ?then1 (`when ?test2 ?then2)) -> `(cond ~?test1 ~?then1 ~?test2 ~?then2)]
+           [(if ?test1 ?then1 (`cond ?&body)) -> `(cond ~?test1 ~?then1 ~@?&body)]
+
            [(`let [?x ?y]
              (`when ?x
               (`let [?z ?x] ?&body)))
