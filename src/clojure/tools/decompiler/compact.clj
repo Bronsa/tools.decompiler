@@ -88,6 +88,10 @@
            [(let* ?binds ?&body) -> `(let ~?binds ~@?&body)]
            [(if ?test (do ?&then)) -> `(when ~?test ~@?&then)]
            [(if ?test ?then nil) ->`(when ~?test ~?then)]
+           [(`let ?bindings (do ?&body)) -> `(let ~?bindings ~@?&body)]
+           [(`fn (?bindings (do ?&body))) -> `(fn (~?bindings ~@?&body))]
+           [(do (do ?&body)) -> `(do ~@?&body)]
+
 
            [('clojure.lang.Var/pushThreadBindings ?binds) -> `(push-thread-bindings ~?binds)]
            [('clojure.lang.Var/popThreadBindings) -> `(pop-thread-bindings)]
@@ -105,7 +109,13 @@
             ->
             `(do ~@?&body)]
 
-           [(if (.equals ?ns ''clojure.core) nil (do ('clojure.lang.LockingTransaction/runInTransaction ?&_) nil)) -> nil]
+           [(if (.equals ?ns ''clojure.core)
+              nil
+              (do
+                ('clojure.lang.LockingTransaction/runInTransaction ?&_)
+                nil))
+            ->
+            nil]
 
            [(`let [?x ?y]
              (`when ?x
