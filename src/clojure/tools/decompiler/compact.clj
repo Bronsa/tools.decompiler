@@ -192,7 +192,21 @@
 
     [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} -> (list ~@?&body)]
 
-    [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~?name ~@?&body)]))
+    [(do nil
+         (`let [?v (var ?var)]
+          (if (`and ('.hasRoot ?v)
+               (`instance? 'clojure.lang.MultiFn (`deref ?v)))
+            nil
+            (do nil
+                (def ?name ('clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
+                (var ?var)))))
+     ->
+     `(defmulti ~?name ~?dispatch-fn ~@(when-not (= ?d :default) [?d]) ~@(when-not (= ?h '(var clojure.core/global-hierarchy)) [?h]))]
+
+    [(.addMethod ?multi ?dispatch-val (`fn ?&body)) -> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
+
+    [(.bindRoot (var ?var) (`fn ?name ?&body)) ->  `(defn ~(-> ?var name symbol) ~@?&body)]
+    [(.bindRoot (var ?var) ?val) ->  `(def  ~(-> ?var name symbol) ~?val)]))
 
 (defn macrocompact [source]
   (w/postwalk
