@@ -316,11 +316,17 @@
 
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
+    [(letfn* ?binds ?&body) :-> `(letfn ~(vec (for [[_ bind] (partition 2 ?binds)]
+                                               (rest bind)))
+                                  ~@?&body)]
+
+    [(`future-call (fn ([] ?&body))) :-> `(future ~@?&body)]
+
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
 
-;; WIP for, destructuring, assert, with-precision, definline, a*, ns, condp
+;; WIP for, destructuring, assert, a*, ns, condp, case, with-redefs,cond/as/some->/>>
 
 (defn macrocompact [source]
   (w/postwalk
