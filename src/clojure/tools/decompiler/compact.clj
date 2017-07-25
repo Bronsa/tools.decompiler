@@ -346,14 +346,14 @@
       (`cond-> ?g ?&exprs2))
      :-> `(cond-> ~?expr ~@?&exprs2)]
 
-    [(do nil
-         (`let [?v (var ?var)]
-          (if (`and (.hasRoot ?v)
-               (`instance? clojure.lang.MultiFn (`deref ?v)))
-            nil
-            (do nil
-                (def ?name (clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
-                (var ?var)))))
+    [(do
+       nil
+       (`let [?v (var ?var)]
+        (`when-not (`and (.hasRoot ?v)
+                    (`instance? clojure.lang.MultiFn (`deref ?v)))
+         nil
+         (def ?name (clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
+         (var ?var))))
      :->
      `(defmulti ~?name ~?dispatch-fn
         ~@(when-not (= ?d :default) [?d])
