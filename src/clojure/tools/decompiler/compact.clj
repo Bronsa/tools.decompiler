@@ -8,6 +8,7 @@
 
 (ns clojure.tools.decompiler.compact
   (:require [clojure.core.match :as m]
+            [clojure.string :as s]
             [clojure.walk :as w]))
 
 (defn register! [sym !occurs]
@@ -322,11 +323,24 @@
 
     [(`future-call (fn ([] ?&body))) :-> `(future ~@?&body)]
 
+    [(reify* ?interfaces ?&methods) :-> `(reify ~@?interfaces ~@?&methods)]
+
+    [(`let [?p (?ctor)]
+      (`init-proxy ?p ?methods-map)
+      ?p) :->
+     `(proxy ~(-> ?ctor str (s/split #"\$") (rest) (butlast) (->> (mapv symbol)))
+          ~@(for [[method method-fn] ?methods-map]
+              (list* (symbol method) (drop 2 method-fn))))]
+
+    [(`proxy-call-with-super (`fn ?_ ([] ?meth)) ?&_)
+     {?meth #(= 'this (second %) )}
+     :-> `(proxy-super ~(-> ?meth first str (subs 1) symbol) ~@(->> ?meth (drop 2)))]
+
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
 
-;; WIP for, destructuring, assert, a*, ns, condp, case, with-redefs,cond/as/some->/>>
+;; WIP for, destructuring, assert, a*, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype
 
 (defn macrocompact [source]
   (w/postwalk
