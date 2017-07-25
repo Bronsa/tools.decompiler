@@ -160,12 +160,6 @@
     [(if ?test1 ?then1 (`when ?test2 ?then2)) :-> `(cond ~?test1 ~?then1 ~?test2 ~?then2)]
     [(if ?test1 ?then1 (`cond ?&body)) :-> `(cond ~?test1 ~?then1 ~@?&body)]
 
-    [(`let [?x ?y]
-      (`when ?x
-       (`let [?z ?x] ?&body)))
-     :->
-     `(when-let [~?z ~?y] ~@?&body)]
-
     [(loop* ?&l) :-> `(loop ~@?&l)]
 
     [(`let [?a ?b] (try ?&body))
@@ -206,12 +200,21 @@
      `(locking ~?lock ~@?&body)]
 
     [(`let [?x ?y]
+      (`when ?x
+       (`let [?z ?x ?&binds] ?&body)))
+     {?x #(-> % name (.startsWith "temp__"))}
+     :->
+     (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
+       `(when-let [~?z ~?y] ~body))]
+
+    [(`let [?x ?y]
       (if ?x
-        (`let [?z ?x] ?&body)
+        (`let [?z ?x ?&binds] ?&body)
         ?else))
      {?x #(-> % name (.startsWith "temp__"))}
      :->
-     `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
+     (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
+       `(if-let [~?z ~?y] ~body ~?else))]
 
     [(`let [?x ?y]
       (if (`nil? ?x)
