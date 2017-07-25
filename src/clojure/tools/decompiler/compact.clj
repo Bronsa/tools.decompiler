@@ -114,10 +114,10 @@
     [(clojure.lang.Util/identical ?a ?b) :-> `(identical? ~?a ~?b)]
     [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
     [(clojure.lang.Numbers/num ?a) :-> ?a]
-    [(java.lang.Long/valueOf ?a) #(num? %) :-> (long ?a)]
-    [(java.lang.Integer/valueOf ?a) #(num? %) :-> (int ?a)]
-    [(java.lang.Double/valueOf ?a) #(num? %) :-> (double ?a)]
-    [(java.lang.Float/valueOf ?a) #(num? %) :-> (float ?a)]
+    [(java.lang.Long/valueOf ?a) {?a number?} :-> (long ?a)]
+    [(java.lang.Integer/valueOf ?a) {?a number?} :-> (int ?a)]
+    [(java.lang.Double/valueOf ?a) {?a number?} :-> (double ?a)]
+    [(java.lang.Float/valueOf ?a) {?a number?} :-> (float ?a)]
 
     [(do ?&body)
      {?&body #(some (fn [expr]
