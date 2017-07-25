@@ -283,6 +283,6 @@
        (let [new-node (macrocompact-step node)]
          (if (= node new-node)
            node
-           (recur new-node)))
+           (macrocompact new-node)))
        node))
    source))
