@@ -39,9 +39,12 @@
   `(let* [~@(mapcat ast->clj local-variables)] ~(ast->clj body)))
 
 (defmethod ast->clj :letfn [{:keys [local-variables body]}]
-  `(letfn* ~(vec (for [{:keys [local-variable init]} local-variables]
-                   `(~(symbol (:name local-variable))
-                     ~@(first (drop-while (complement sequential?) (ast->clj init))))))
+  `(letfn* ~(->> (for [{:keys [local-variable init]} local-variables]
+                   [(symbol (:name local-variable))
+                    `(fn* ~(symbol (:name local-variable))
+                          ~@(first (drop-while (complement sequential?) (ast->clj init))))])
+                 (mapcat identity)
+                 (vec))
            ~(ast->clj body)))
 
 (defmethod ast->clj :method [{:keys [name args body]}]
