@@ -355,16 +355,20 @@
        (`loop [?idx 0]
         (if (`< ?idx (`alength ?a))
           (do
-            ;; WIP drop the valueof?
             (`aset ?ret (java.lang.Integer/valueOf ?idx) ?expr)
             (recur (`inc ?idx)))
           ?ret)))
      :-> `(amap ~?arr ~?idx ~?ret ~?expr)]
 
+    [(`let [?a ?arr ?len (`alength ?a)]
+      (`loop [?idx 0, ?ret ?init]
+       (if (`< ?idx ?len) (recur (`inc ?idx) ?expr) ?ret)))
+     :-> `(areduce ~?arr ~?idx ~?ret ~?init ~?expr)]
+
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, a*, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype, doto
+;; WIP for, destructuring, assert, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype, doto
 
 (defn macrocompact [source]
   (w/postwalk
