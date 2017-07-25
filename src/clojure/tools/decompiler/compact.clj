@@ -153,11 +153,9 @@
 
     [(.reset ?v (?f (.deref ?v) ?&args)) :-> `(vswap! ~?v ~?f ~@?&args)]
 
-    [(if (.equals ?ns ''clojure.core)
-       nil
-       (do
-         (`dosync ?&_)
-         nil))
+    [(`when-not (.equals ?ns ''clojure.core)
+       (`dosync ?&_)
+       nil)
      :->
      nil]
 
@@ -287,7 +285,9 @@
                 (def ?name (clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
                 (var ?var)))))
      :->
-     `(defmulti ~?name ~?dispatch-fn ~@(when-not (= ?d :default) [?d]) ~@(when-not (= ?h '(var clojure.core/global-hierarchy)) [?h]))]
+     `(defmulti ~?name ~?dispatch-fn
+        ~@(when-not (= ?d :default) [?d])
+        ~@(when-not (= ?h '(var clojure.core/global-hierarchy)) [?h]))]
 
     [(`let [?s (java.io.StringWriter.)]
       (`binding [`*out* ?s]
