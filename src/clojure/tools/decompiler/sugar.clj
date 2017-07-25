@@ -258,25 +258,6 @@
     (cond
 
       (and (= target "clojure.lang.RT")
-           (#{"count" "nth" "get" "isReduced" "alength" "aclone" "aget" "aset" "object_array"} method))
-
-      {:op :invoke
-       :fn {:op :var
-            :ns "clojure.core"
-            :name ({"isReduced" "reduced?" "object_array" "object-array"} method method)}
-       :args args}
-
-      (and (= target "clojure.lang.Util")
-           (#{"identical" "="} method))
-
-      ;; WIP uninline nil?
-      {:op :invoke
-       :fn {:op :var
-            :ns "clojure.core"
-            :name ({"identical" "identical?" "=" "="} method)}
-       :args args}
-
-      (and (= target "clojure.lang.RT")
            (= method "keyword")
            (= 2 (count args))
            (every? (comp #{:const} :op) args))
@@ -308,13 +289,6 @@
               "uncheckedIntCast" "uncheckedCharCast" "uncheckedByteCast"
               "uncheckedShortCast" "uncheckedLongCast" "uncheckedFloatCast"} method)
            (= 1 (count args)))
-
-      (first args)
-
-      (and (= target "clojure.lang.Numbers")
-           (= "num" method)
-           (= 1 (count args)))
-
       (first args)
 
       (and (= target "clojure.lang.Numbers")
@@ -399,6 +373,14 @@
        :target (first args)
        :args []
        :method (:val (second args))}
+
+      (and (= target "clojure.lang.Reflector")
+           (= method "invokeStaticMethod"))
+
+      {:op :invoke-static
+       :target (-> args first :args first :val)
+       :args (-> args (nth 2) :!items deref)
+       :method (-> args second :val)}
 
       (and (= target "clojure.lang.RT")
            (#{"vector" "set" "mapUniqueKeys" "map"} method)

@@ -1224,5 +1224,5 @@
       :else
       (throw (Exception. ":(")))))
 
-;;; genclass, proxy
+;;; genclass
 ;; WIP int -> booleans

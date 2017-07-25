@@ -99,6 +99,19 @@
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
     [(if ?test nil (do ?&body)) :-> `(when-not ~?test ~@?&body)]
 
+    [(clojure.lang.RT/count ?arg) :-> `(count ~?arg)]
+    [(clojure.lang.RT/nth ?&args) :-> `(nth ~@?&args)]
+    [(clojure.lang.RT/get ?&args) :-> `(get ~@?&args)]
+    [(clojure.lang.RT/isReduced ?arg) :-> `(reduced? ~?arg)]
+    [(clojure.lang.RT/alength ?arg) :-> `(alength ~?arg)]
+    [(clojure.lang.RT/aclone ?arg) :-> `(aclone ~?arg)]
+    [(clojure.lang.RT/aget ?arr ?val) :-> `(aget ~?arr ~?val)]
+    [(clojure.lang.RT/aset ?arr ?val) :-> `(aset ~?arr ~?val)]
+    [(clojure.lang.RT/object_array ?arg) :-> `(object-array ~?arg)]
+    [(clojure.lang.Util/identical ?a ?b) :-> `(identical? ~?a ~?b)]
+    [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
+    [(clojure.lang.Numbers/num ?a) :-> ?a]
+
     [(do ?&body)
      {?&body #(some (fn [expr]
                       (and (seq? expr)
@@ -204,7 +217,7 @@
     [(`let [?x ?y]
       (`when ?x
        (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(-> % name (.startsWith "temp--"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-let [~?z ~?y] ~body))]
@@ -213,7 +226,7 @@
       (if ?x
         (`let [?z ?x ?&binds] ?&body)
         ?else))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(-> % name (.startsWith "temp--"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(if-let [~?z ~?y] ~body ~?else))]
@@ -222,7 +235,7 @@
       (if (`nil? ?x)
         nil
         (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(-> % name (.startsWith "temp--"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-some [~?z ~?y] ~body))]
@@ -232,26 +245,24 @@
         ?else
         (`let [?z ?x]
          ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(-> % name (.startsWith "temp--"))}
      :->
      `(if-some [~?z ~?y] (do ~@?&body) ~?else)]
 
     [(`let [?t ?x] (if ?t ?y ?t))
-     {?t #(-> % name (.startsWith "and__"))}
+     {?t #(-> % name (.startsWith "and--"))}
      :->
      `(and ~?x ~?y)]
     [(`and ?x (`and ?y ?&z)) :->  `(and ~?x ~?y ~@?&z)]
 
     [(`let [?t ?x] (if ?t ?t ?y))
-     {?t #(-> % name (.startsWith "or__"))}
+     {?t #(-> % name (.startsWith "or--"))}
      :->
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
 
     ;; WIP body should not use ?n
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
-
-    [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
 
     [(clojure.core/import* ?klass) :-> `(import '~(symbol ?klass))]
 
