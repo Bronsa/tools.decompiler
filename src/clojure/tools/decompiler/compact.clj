@@ -224,7 +224,7 @@
     [(`let [?x ?y]
       (`when ?x
        (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp--"))}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-let [~?z ~?y] ~body))]
@@ -233,7 +233,7 @@
       (if ?x
         (`let [?z ?x ?&binds] ?&body)
         ?else))
-     {?x #(-> % name (.startsWith "temp--"))}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(if-let [~?z ~?y] ~body ~?else))]
@@ -242,7 +242,7 @@
       (if (`nil? ?x)
         nil
         (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp--"))}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-some [~?z ~?y] ~body))]
@@ -252,18 +252,18 @@
         ?else
         (`let [?z ?x]
          ?&body)))
-     {?x #(-> % name (.startsWith "temp--"))}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      `(if-some [~?z ~?y] (do ~@?&body) ~?else)]
 
     [(`let [?t ?x] (if ?t ?y ?t))
-     {?t #(-> % name (.startsWith "and--"))}
+     {?t #(-> % name (.startsWith "and__"))}
      :->
      `(and ~?x ~?y)]
     [(`and ?x (`and ?y ?&z)) :->  `(and ~?x ~?y ~@?&z)]
 
     [(`let [?t ?x] (if ?t ?t ?y))
-     {?t #(-> % name (.startsWith "or--"))}
+     {?t #(-> % name (.startsWith "or__"))}
      :->
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
@@ -289,7 +289,7 @@
 
     [(`when-let [?bind (`seq ?xs)]
       (`let [?x ?bind]
-       ?&body)) {?bind #(-> % name (.startsWith "xs--"))}
+       ?&body)) {?bind #(-> % name (.startsWith "xs__"))}
      :->
      `(when-first [~?x ~?xs]
         ~@?&body)]
@@ -297,7 +297,7 @@
     [(if (`nil? ?g)
        nil
        (?f ?g ?&args))
-     {?g #(-> % name (.startsWith "G--"))}
+     {?g #(-> % name (.startsWith "G__"))}
      :-> `(some-> ~?g (~?f ~@?&args))]
 
     [(`let [?g (`some-> ?g ?&exprs)]
@@ -311,7 +311,7 @@
     [(`if ?test
       (?f ?g ?&args)
       ?g)
-     {?g #(-> % name (.startsWith "G--"))}
+     {?g #(-> % name (.startsWith "G__"))}
      :-> `(cond-> ~?g ~?test (~?f ~@?&args))]
 
     [(`let [?g (`cond-> ?g ?&exprs)]
@@ -405,7 +405,7 @@
     [(`let [?g ?expr]
       (`case ?g
        ?&body))
-     {?g #(-> % name (.startsWith "G--"))}
+     {?g #(-> % name (.startsWith "G__"))}
      :-> `(case ~?expr ~@?&body)]
 
     [(`let [?a ?arr ?len (`alength ?a)]
@@ -414,7 +414,7 @@
      :-> `(areduce ~?arr ~?idx ~?ret ~?init ~?expr)]
 
     [(`let [?x ?obj] (?f ?x ?&args) (?g ?x ?&args2) ?&exprs)
-     {?x #(-> % name (.startsWith "G--"))
+     {?x #(-> % name (.startsWith "G__"))
       ?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
      :-> `(doto ~?obj (~?f ~@?&args) (~?g ~@?&args2) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 

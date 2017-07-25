@@ -52,8 +52,8 @@
 
 (defmethod ast->clj :letfn [{:keys [local-variables body]}]
   `(letfn* ~(->> (for [{:keys [local-variable init]} local-variables]
-                   [(demunge (:name local-variable))
-                    `(fn* ~(demunge (:name local-variable))
+                   [(symbol (:name local-variable))
+                    `(fn* ~(symbol (:name local-variable))
                           ~@(first (drop-while (complement sequential?) (ast->clj init))))])
                  (mapcat identity)
                  (vec))
@@ -72,7 +72,7 @@
 ;; WIP meta
 (defmethod ast->clj :deftype [{:keys [name tname fields interfaces methods]}]
   `(deftype* ~(symbol tname) ~(symbol name)
-     ~(mapv (comp demunge :name) fields)
+     ~(mapv (comp symbol :name) fields)
      :implements ~(mapv symbol interfaces)
      ~@(map ast->clj methods)))
 
@@ -95,7 +95,7 @@
   `(~(demunge (str ".-" field)) ~(ast->clj instance)))
 
 (defmethod ast->clj :local [{:keys [name]}]
-  (demunge name))
+  (symbol name))
 
 (defmethod ast->clj :recur [{:keys [args]}]
   `(recur ~@(map ast->clj args)))
@@ -117,11 +117,11 @@
 
 (defmethod ast->clj :fn [{:keys [fn-methods name]}]
   ;; wip meta, fn name
-  `(fn* ~(demunge name) ~@(map ast->clj fn-methods)))
+  `(fn* ~(symbol name) ~@(map ast->clj fn-methods)))
 
 (defmethod ast->clj :fn-method [{:keys [args body var-args?]}]
   ;; wip tags
-  (let [argv (mapv (comp demunge :name) args)
+  (let [argv (mapv (comp symbol :name) args)
         argv (if var-args?
                (into (pop argv) ['& (peek argv)])
                argv)]
@@ -146,7 +146,7 @@
   `(~(ast->clj fn) ~@(map ast->clj args)))
 
 (defmethod ast->clj :catch [{:keys [local body]}]
-  `(catch ~(symbol (:type local)) ~(demunge (:name local)) ~(ast->clj body)))
+  `(catch ~(symbol (:type local)) ~(symbol (:name local)) ~(ast->clj body)))
 
 (defmethod ast->clj :try [{:keys [body catches finally]}]
   `(try ~(ast->clj body)
