@@ -381,7 +381,9 @@
        :method (:val (second args))}
 
       (and (= target "clojure.lang.Reflector")
-           (= method "invokeStaticMethod"))
+           (= method "invokeStaticMethod")
+           (= :array (:op (nth args 2)))
+           (= :invoke-static (:op (first args))))
 
       {:op :invoke-static
        :target (-> args first :args first :val)
