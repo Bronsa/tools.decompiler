@@ -154,7 +154,7 @@
     [(if (.equals ?ns ''clojure.core)
        nil
        (do
-         (clojure.lang.LockingTransaction/runInTransaction ?&_)
+         (`sync ?&_)
          nil))
      :->
      nil]
@@ -262,6 +262,19 @@
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
 
+    [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(sync nil ~@?&body)]
+    ;; WIP custom message
+    [(if (clojure.lang.LockingInTransaction/isRunning)
+       (throw ?_)
+       (do ?&body)) :-> `(io! ~@?&body)]
+
+    [(`when-let [?bind (`seq ?xs)]
+      (`let [?x ?bind]
+       ?&body)) {?bind #(-> % name (.startsWith "xs__"))}
+     :->
+     `(when-first [~?x ~?xs]
+        ~@?&body)]
+
     [(do nil
          (`let [?v (var ?var)]
           (if (`and (.hasRoot ?v)
@@ -273,10 +286,19 @@
      :->
      `(defmulti ~?name ~?dispatch-fn ~@(when-not (= ?d :default) [?d]) ~@(when-not (= ?h '(var clojure.core/global-hierarchy)) [?h]))]
 
+    [(`let [?s (java.io.StringWriter.)]
+      (`binding [`*out* ?s]
+       ?&body))
+     {?&body #(compact (last %) [(`str ?_) :-> true] :else false)}
+     :-> `(with-out-str ~@(butlast ?&body))]
+
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
+
+
+;; WIP for, destructuring
 
 (defn macrocompact [source]
   (w/postwalk
