@@ -253,7 +253,7 @@
 
     [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
 
-    [(clojure.core/import* ?klass) :-> `(import ~(symbol ?klass))]
+    [(clojure.core/import* ?klass) :-> `(import '~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
     [(`reset-meta! ?var ?meta) {?meta (every-pred map?
