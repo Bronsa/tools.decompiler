@@ -76,6 +76,14 @@
        (sort-by :start-label)
        (first)))
 
+(defn find-no-op-local-init [{:keys [local-variable-table]} index label]
+  (->> local-variable-table
+       (filter (comp #{index} :index))
+       (filter (comp #{label} :start-label))
+       (filter (comp #{label} :end-label))
+       (sort-by :start-label)
+       (first)))
+
 (defn init-local-variable? [{:insn/keys [label length]} {:keys [start-label]}]
   (= (+ label length) start-label))
 
@@ -604,7 +612,12 @@
         (if (init-local-variable? insn local-variable)
           (process-lexical-block ctx local-variable init)
           ctx))
-      (process-letfn ctx target-index))))
+      (if (find-no-op-local-init ctx target-index (+ label length))
+        (let [init (peek stack)]
+          (-> ctx
+              (update :stack pop)
+              (update :statements conj init)))
+        (process-letfn ctx target-index)))))
 
 (defn parse-collision-expr [exprs {:keys [test then else]}]
   (let [node [(-> test :args first) then]
