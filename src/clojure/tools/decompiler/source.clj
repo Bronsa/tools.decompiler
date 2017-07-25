@@ -6,7 +6,8 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any other, from this software.
 
-(ns clojure.tools.decompiler.source)
+(ns clojure.tools.decompiler.source
+  (:require [clojure.tools.decompiler.utils :refer [demunge]]))
 
 (defmulti ast->clj :op)
 
@@ -40,15 +41,15 @@
 
 (defmethod ast->clj :letfn [{:keys [local-variables body]}]
   `(letfn* ~(->> (for [{:keys [local-variable init]} local-variables]
-                   [(symbol (:name local-variable))
-                    `(fn* ~(symbol (:name local-variable))
+                   [(demunge (:name local-variable))
+                    `(fn* ~(demunge (:name local-variable))
                           ~@(first (drop-while (complement sequential?) (ast->clj init))))])
                  (mapcat identity)
                  (vec))
            ~(ast->clj body)))
 
 (defmethod ast->clj :method [{:keys [name args body]}]
-  `(~(symbol name) [~@(map (comp symbol :name) args)] ~(ast->clj body)))
+  `(~(demunge name) [~@(map (comp demunge :name) args)] ~(ast->clj body)))
 
 (defmethod ast->clj :reify [{:keys [interfaces methods]}]
   `(reify* ~(mapv symbol interfaces)
@@ -60,7 +61,7 @@
 ;; WIP meta
 (defmethod ast->clj :deftype [{:keys [name tname fields interfaces methods]}]
   `(deftype* ~(symbol tname) ~(symbol name)
-     ~(mapv (comp symbol :name) fields)
+     ~(mapv (comp demunge :name) fields)
      :implements ~(mapv symbol interfaces)
      ~@(map ast->clj methods)))
 
@@ -80,10 +81,10 @@
   `(~(symbol (str class ".")) ~@(map ast->clj args)))
 
 (defmethod ast->clj :instance-field [{:keys [instance field]}]
-  `(~(symbol (str ".-" field)) ~(ast->clj instance)))
+  `(~(demunge (str ".-" field)) ~(ast->clj instance)))
 
 (defmethod ast->clj :local [{:keys [name]}]
-  (symbol name))
+  (demunge name))
 
 (defmethod ast->clj :recur [{:keys [args]}]
   `(recur ~@(map ast->clj args)))
@@ -105,11 +106,11 @@
 
 (defmethod ast->clj :fn [{:keys [fn-methods name]}]
   ;; wip meta, fn name
-  `(fn* ~(symbol name) ~@(map ast->clj fn-methods)))
+  `(fn* ~(demunge name) ~@(map ast->clj fn-methods)))
 
 (defmethod ast->clj :fn-method [{:keys [args body var-args?]}]
   ;; wip tags
-  (let [argv (mapv (comp symbol :name) args)
+  (let [argv (mapv (comp demunge :name) args)
         argv (if var-args?
                (into (pop argv) ['& (peek argv)])
                argv)]
@@ -122,7 +123,7 @@
   `(~(symbol target method) ~@(map ast->clj args)))
 
 (defmethod ast->clj :invoke-instance [{:keys [target method args]}]
-  `(~(symbol (str "." method)) ~(ast->clj target) ~@(map ast->clj args)))
+  `(~(demunge (str "." method)) ~(ast->clj target) ~@(map ast->clj args)))
 
 (defmethod ast->clj :var [{:keys [ns name]}]
   (symbol ns name))
@@ -134,7 +135,7 @@
   `(~(ast->clj fn) ~@(map ast->clj args)))
 
 (defmethod ast->clj :catch [{:keys [local body]}]
-  `(catch ~(symbol (:type local)) ~(symbol (:name local)) ~(ast->clj body)))
+  `(catch ~(symbol (:type local)) ~(demunge (:name local)) ~(ast->clj body)))
 
 (defmethod ast->clj :try [{:keys [body catches finally]}]
   `(try ~(ast->clj body)

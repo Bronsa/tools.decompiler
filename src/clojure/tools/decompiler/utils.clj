@@ -15,7 +15,9 @@
   (s/replace s #"(__[0-9]+)" ""))
 
 (defn demunge [s]
-  (symbol (Compiler/demunge s)))
+  (if (#{"_" '_} s)
+    (symbol s)
+    (symbol (Compiler/demunge s))))
 
 (defn find-methods [methods matches]
   (for [method methods
