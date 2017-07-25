@@ -52,7 +52,7 @@
     [form]))
 
 (defn assert-unify [patterns]
-  (list* `and
+  (list* `and true
          (for [[bind unifiers] patterns]
            `(= ~bind ~@unifiers))))
 
@@ -94,11 +94,23 @@
     [(`when ?test (do ?&then)) :-> `(when ~?test ~@?&then)]
     [(`let ?bindings (do ?&body)) :-> `(let ~?bindings ~@?&body)]
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
-    [(do (do ?&body)) :-> `(do ~@?&body)]
 
+    [(do ?&body)
+     {?&body [#(some (fn [expr]
+                       (and (seq? expr)
+                            (= 'do (first expr))))
+                     %)]}
+     :->
+     (list* 'do (->> (for [expr ?&body
+                           :when expr]
+                       (if (and (seq? expr)
+                                (= 'do (first expr)))
+                         (rest expr)
+                         [expr]))
+                     (mapcat identity)))]
 
-    [('clojure.lang.Var/pushThreadBindings ?binds) :-> `(push-thread-bindings ~?binds)]
-    [('clojure.lang.Var/popThreadBindings) :-> `(pop-thread-bindings)]
+    [(clojure.lang.Var/pushThreadBindings ?binds) :-> `(push-thread-bindings ~?binds)]
+    [(clojure.lang.Var/popThreadBindings) :-> `(pop-thread-bindings)]
 
     [(do (`push-thread-bindings ?binds)
          (try
@@ -131,16 +143,16 @@
     [(`identical? ?x nil) :-> `(nil? ~?x)]
     [(`identical? nil ?x) :-> `(nil? ~?x)]
 
-    [('clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) :-> `(lazy-seq ~@?&body)]
-    [('clojure.lang.Delay. (`fn ?_ ([] ?&body))) :-> `(delay ~@?&body)]
+    [(clojure.lang.LazySeq. (`fn ?_ ([] ?&body))) :-> `(lazy-seq ~@?&body)]
+    [(clojure.lang.Delay. (`fn ?_ ([] ?&body))) :-> `(delay ~@?&body)]
     [(`bound-fn* (`fn ?_ ([] ?&body))) :-> `(bound-fn ~@?&body)]
 
-    [('.reset ?v (?f ('.deref ?v) ?&args)) :-> `(vswap! ~?v ~?f ~@?&args)]
+    [(.reset ?v (?f (.deref ?v) ?&args)) :-> `(vswap! ~?v ~?f ~@?&args)]
 
     [(if (.equals ?ns ''clojure.core)
        nil
        (do
-         ('clojure.lang.LockingTransaction/runInTransaction ?&_)
+         (clojure.lang.LockingTransaction/runInTransaction ?&_)
          nil))
      :->
      nil]
@@ -156,16 +168,18 @@
 
     [(loop* ?&l) :-> `(loop ~@?&l)]
 
-    [(`let [?a ?a] (try ?&body))
-     {?&body #(compact [%]
-                [(finally ('.close ?x)) :-> true]
-                :else false)}
-     :-> `(with-open [~?a ?b]
-            ~@(butlast ?&body))]
+    [(`let [?a ?b] (try ?&body))
+     {?&body #(and (seq? %)
+                   (compact (last %)
+                     [(finally (.close ?x)) :-> true]
+                     :else false))}
+     :->
+     `(with-open [~?a ~?b]
+        ~@(butlast ?&body))]
 
     [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
       (if (`< ?i ?count)
-        (`let [?a ('.nth ?chunk ?i)]
+        (`let [?a (.nth ?chunk ?i)]
          ?&body)
         (`when-let [?seq (`seq ?seq)]
          (if (`chunked-seq? ?seq)
@@ -178,7 +192,7 @@
       (`loop [?n 0]
        (`when (`< ?n ?c)
         ?&body)))
-     {?body [#(compact [%] [(recur (`+ ?a 1)) :-> true] :else false)]}
+     {?body [#(compact % [(recur (`+ ?a 1)) :-> true] :else false)]}
      :->
      `(dotimes [~?n ~?t]
         ~@(butlast ?&body))]
@@ -243,11 +257,11 @@
 
     [(do nil
          (`let [?v (var ?var)]
-          (if (`and ('.hasRoot ?v)
-               (`instance? 'clojure.lang.MultiFn (`deref ?v)))
+          (if (`and (.hasRoot ?v)
+               (`instance? clojure.lang.MultiFn (`deref ?v)))
             nil
             (do nil
-                (def ?name ('clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
+                (def ?name (clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
                 (var ?var)))))
      :->
      `(defmulti ~?name ~?dispatch-fn ~@(when-not (= ?d :default) [?d]) ~@(when-not (= ?h '(var clojure.core/global-hierarchy)) [?h]))]
