@@ -454,6 +454,15 @@
      :-> `(defrecord ~(symbol (name ?record)) ~(remove-defrecord-fields ?argv)
             ~@(remove-defrecord-interfaces ?interfaces) ~@(remove-defrecord-methods ?&impls))]
 
+    [(`alter-meta! (var ?v) `assoc :doc nil) :-> nil]
+    [((var clojure.core/assert-same-protocol) ?&_) :-> nil]
+    [(`-reset-methods ?_) :-> nil]
+    [(`alter-var-root (var ?p) `merge (`assoc ?m :sigs ?sigs :var (var ?p) :method-map ?mm :method-builders ?mb))
+     :-> `(defprotocol ~(symbol (name ?p))
+            ~@(->> (for [[f {:keys [arglists]}] ?sigs]
+                     [(symbol (name f)) (map #(mapv second %) (rest arglists))])
+                (mapcat identity)))]
+
     [(do
        (deftype* ?type ?ttype ?argv :implements ?interfaces ?&impls)
        ?&_)
@@ -465,7 +474,7 @@
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface, defprotocol
+;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface
 
 (defn macrocompact [source]
   (w/postwalk
