@@ -71,7 +71,9 @@
                                                       (throw backtrack-all))])
        (mapcat identity)))
 
-(defmacro compact [expr & patterns]
+(defmacro compact
+  {:style/indent 1}
+  [expr & patterns]
   (let [_expr (gensym)
         [patterns else] (if (= :else (last (butlast patterns)))
                           [(-> patterns butlast butlast) (last patterns)]
@@ -391,7 +393,7 @@
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype
+;; WIP for, destructuring, assert, ns, condp, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype
 
 (defn macrocompact [source]
   (w/postwalk
