@@ -659,39 +659,36 @@
                                [next-label] (nth (conj label-match [default-label nil]) (inc i))
                                end-label (:insn/label (insn-at ctx {:label next-label :offset -1}))]]
 
-                     (cond
+                     (if hash-test?
+                       (if (= "getstatic" (:insn/name (insn-at ctx {:label label})))
+                         (let [test-ctx (-> ctx
+                                            (assoc :pc label
+                                                   :statements []
+                                                   :terminate? (pc= end-label))
+                                            (process-insns))
+                               test (expr+statements test-ctx)
+                               exprs (-> test :ret :body :ret :body :ret)]
+                           [:collision match (parse-collision-expr [] exprs) test (:recur? test-ctx)])
 
-                       (= "getstatic" (:insn/name (insn-at ctx {:label label})))
-                       (let [test-ctx (-> ctx
-                                          (assoc :pc label
-                                                 :statements []
-                                                 :terminate? (pc= end-label))
-                                          (process-insns))
-                             test (expr+statements test-ctx)
-                             exprs (-> test :ret :body :ret :body :ret)]
-                         [:collision match (parse-collision-expr [] exprs) test (:recur? test-ctx)])
+                         (let [{:keys [stack] :as test-ctx} (-> ctx
+                                                                (assoc :pc label
+                                                                       :statements []
+                                                                       :terminate? (fn [ctx]
+                                                                                     (#{"if_acmpne" "invokestatic"}
+                                                                                      (:insn/name (curr-insn ctx)))))
+                                                                (process-insns))
+                               test (peek stack)
+                               hash-identity? (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
+                               start-expr-label (if hash-identity?
+                                                  (:insn/label (insn-at test-ctx {:offset 1}))
+                                                  (:insn/label (insn-at test-ctx {:offset 2})))
+                               expr-ctx (-> ctx
+                                            (assoc :pc start-expr-label
+                                                   :statements []
+                                                   :terminate? (pc= end-label))
+                                            (process-insns))]
+                           [(if hash-identity? :hash-identity :hash-equiv) match test (expr+statements expr-ctx) (:recur? expr-ctx)]))
 
-                       hash-test?
-                       (let [{:keys [stack] :as test-ctx} (-> ctx
-                                                              (assoc :pc label
-                                                                     :statements []
-                                                                     :terminate? (fn [ctx]
-                                                                                   (#{"if_acmpne" "invokestatic"}
-                                                                                    (:insn/name (curr-insn ctx)))))
-                                                              (process-insns))
-                             test (peek stack)
-                             hash-identity? (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
-                             start-expr-label (if hash-identity?
-                                                (:insn/label (insn-at test-ctx {:offset 1}))
-                                                (:insn/label (insn-at test-ctx {:offset 2})))
-                             expr-ctx (-> ctx
-                                          (assoc :pc start-expr-label
-                                                 :statements []
-                                                 :terminate? (pc= end-label))
-                                          (process-insns))]
-                         [(if hash-identity? :hash-identity :hash-equiv) match test (expr+statements expr-ctx) (:recur? expr-ctx)])
-
-                       :else
 
                        (if (or (= "invokevirtual" (:insn/name (insn-at ctx {:offset -1})))
                                (and (= "invokevirtual" (:insn/name (maybe-insn-at ctx {:offset -5})))
