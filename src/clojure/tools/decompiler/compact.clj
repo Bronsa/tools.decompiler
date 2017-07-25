@@ -96,6 +96,7 @@
     [(`when-let ?bindings (do ?&body)) :-> `(when-let ~?bindings ~@?&body)]
     [(`when-some ?bindings (do ?&body)) :-> `(when-some ~?bindings ~@?&body)]
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
+    [(if ?test nil (do ?&body)) :-> `(when-not ~?test ~@?&body)]
 
     [(do ?&body)
      {?&body #(some (fn [expr]
@@ -140,7 +141,7 @@
                       (contains? % 'clojure.lang.Compiler/LOADER)
                       (= 1 (count %)))}
      :->
-     `(do ~@?&body)]
+     `(with-loading-context ~@?&body)]
 
     [(`identical? ?x nil) :-> `(nil? ~?x)]
     [(`identical? nil ?x) :-> `(nil? ~?x)]
@@ -154,7 +155,7 @@
     [(if (.equals ?ns ''clojure.core)
        nil
        (do
-         (`sync ?&_)
+         (`dosync ?&_)
          nil))
      :->
      nil]
@@ -248,7 +249,7 @@
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
 
-
+    ;; WIP body should not use ?n
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
 
     [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
@@ -262,7 +263,8 @@
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
 
-    [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(sync nil ~@?&body)]
+    [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(dosync ~@?&body)]
+
     ;; WIP custom message
     [(if (clojure.lang.LockingInTransaction/isRunning)
        (throw ?_)
@@ -292,13 +294,26 @@
      {?&body #(compact (last %) [(`str ?_) :-> true] :else false)}
      :-> `(with-out-str ~@(butlast ?&body))]
 
+    [(`let [?s (clojure.lang.LineNumberingPushbackReader. (java.io.StringReader. ?i))]
+      (`binding [`*in* ?s]
+       ?&body))
+     :-> `(with-in-str ~@?&body)]
+
+    [(`refer ''clojure.core ?&filters) :-> `(refer-clojure ~@?&filters)]
+
+    [(`let [?v (var ?var)]
+      (`when-not (.hasRoot ?v)
+       nil
+       (def ?name ?expr)
+       (var ?var))) :-> `(defonce ~?name ~?expr)]
+
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
 
-;; WIP for, destructuring
+;; WIP for, destructuring, assert, with-precision, definline, a*, ns
 
 (defn macrocompact [source]
   (w/postwalk
