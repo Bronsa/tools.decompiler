@@ -54,7 +54,8 @@
 
 (defn assert-unify [patterns]
   (list* `and true
-         (for [[bind unifiers] patterns]
+         (for [[bind unifiers] patterns
+               :when (seq unifiers)]
            `(= ~bind ~@unifiers))))
 
 (def backtrack-all (Exception.))
@@ -364,6 +365,10 @@
       (`loop [?idx 0, ?ret ?init]
        (if (`< ?idx ?len) (recur (`inc ?idx) ?expr) ?ret)))
      :-> `(areduce ~?arr ~?idx ~?ret ~?init ~?expr)]
+
+    [(`let [?g ?obj] (?f ?g ?&args) ?&exprs)
+     {?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
+     :-> `(doto ~?obj (~?f ~@?&args) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
