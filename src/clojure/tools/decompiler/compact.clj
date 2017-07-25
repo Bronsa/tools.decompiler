@@ -179,7 +179,7 @@
          (if (`chunked-seq? ?seq)
            (`let [?c (`chunk-first ?seq)]
             (recur ?&_))
-           (`let [?a (`first ?seq)] ?&_)))))
+           (`let [?a (`first ?seq) ?&_] ?&_)))))
      :-> `(doseq [~?a ~?b] ~@(butlast ?&body))]
 
     [(`let [?c ?t]
@@ -219,11 +219,11 @@
     [(`let [?x ?y]
       (if (`nil? ?x)
         nil
-        (`let [?z ?x]
-         ?&body)))
+        (`let [?z ?x ?&binds] ?&body)))
      {?x #(-> % name (.startsWith "temp__"))}
      :->
-     `(when-some [~?z ~?y] ~@?&body)]
+     (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
+       `(when-some [~?z ~?y] ~body))]
 
     [(`let [?x ?y]
       (if (`nil? ?x)
