@@ -26,7 +26,13 @@
                             [test (ast->clj expr)]))
                         test)
                 [(ast->clj test) (ast->clj expr)]))
-            (mapcat identity))
+            (group-by second)
+            (mapcat (fn [[then tests+thens]]
+                      (let [tests (map first tests+thens)
+                            test (if (= 1 (count tests))
+                                   (first tests)
+                                   tests)]
+                        [test then]))))
      ~(ast->clj default)))
 
 (defmethod ast->clj :monitor-enter [{:keys [sentinel]}]
