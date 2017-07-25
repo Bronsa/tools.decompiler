@@ -167,9 +167,9 @@
                                          (update :args #(mapv ast->sugared-ast %)))]
    (cond
 
-     ;; WIP invokePrim
-     (and (= target-class "clojure.lang.IFn")
-          (= "invoke" method))
+     (or (and (= target-class "clojure.lang.IFn")
+              (= "invoke" method))
+         (= "invokePrim" method))
 
      {:op :invoke
       :fn target

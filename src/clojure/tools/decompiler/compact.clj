@@ -246,7 +246,7 @@
 
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
 
-    [(import* ?klass) :-> `(import ~(symbol ?klass))]
+    [(clojure.core/import* ?klass) :-> `(import ~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
     [(`reset-meta! ?var ?meta) {?meta (every-pred map?
