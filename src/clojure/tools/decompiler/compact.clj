@@ -307,13 +307,20 @@
        (def ?name ?expr)
        (var ?var))) :-> `(defonce ~?name ~?expr)]
 
+    [(`loop []
+      (when ?test
+        ?&body))
+     {?&body #(= '(recur) (last %))}
+     :->
+     `(while ?test ~@(butlast ?&body))]
+
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
 
-;; WIP for, destructuring, assert, with-precision, definline, a*, ns
+;; WIP for, destructuring, assert, with-precision, definline, a*, ns, condp
 
 (defn macrocompact [source]
   (w/postwalk
