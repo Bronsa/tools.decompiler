@@ -93,6 +93,8 @@
     [(if ?test ?then nil) :->`(when ~?test ~?then)]
     [(`when ?test (do ?&then)) :-> `(when ~?test ~@?&then)]
     [(`let ?bindings (do ?&body)) :-> `(let ~?bindings ~@?&body)]
+    [(`when-let ?bindings (do ?&body)) :-> `(when-let ~?bindings ~@?&body)]
+    [(`when-some ?bindings (do ?&body)) :-> `(when-some ~?bindings ~@?&body)]
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
 
     [(do ?&body)
