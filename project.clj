@@ -5,5 +5,5 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
                  [org.apache.bcel/bcel "6.0"]
-                 [org.clojure/core.match "0.3.0-alpha4"]
+                 [bronsa/core.match "0.3.0-alpha4"]
                  [fipp "0.6.9"]])
