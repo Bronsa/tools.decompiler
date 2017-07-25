@@ -232,7 +232,7 @@
       (`loop [?n 0]
        (`when (`< ?n ?c)
         ?&body)))
-     {?body #(compact % [(recur (`+ ?a 1)) :-> true] :else false)}
+     {?body #(compact % [(recur (`inc ?a)) :-> true] :else false)}
      :->
      `(dotimes [~?n ~?t]
         ~@(butlast ?&body))]
