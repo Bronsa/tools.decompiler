@@ -105,8 +105,8 @@
     [(clojure.lang.RT/isReduced ?arg) :-> `(reduced? ~?arg)]
     [(clojure.lang.RT/alength ?arg) :-> `(alength ~?arg)]
     [(clojure.lang.RT/aclone ?arg) :-> `(aclone ~?arg)]
-    [(clojure.lang.RT/aget ?arr ?val) :-> `(aget ~?arr ~?val)]
-    [(clojure.lang.RT/aset ?arr ?val) :-> `(aset ~?arr ~?val)]
+    [(clojure.lang.RT/aget ?arr ?idx) :-> `(aget ~?arr ~?idx)]
+    [(clojure.lang.RT/aset ?arr ?idx ?val) :-> `(aset ~?arr ~?idx ~?val)]
     [(clojure.lang.RT/object_array ?arg) :-> `(object-array ~?arg)]
     [(clojure.lang.Util/identical ?a ?b) :-> `(identical? ~?a ~?b)]
     [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
@@ -346,6 +346,20 @@
     [(`proxy-call-with-super (`fn ?_ ([] ?meth)) ?&_)
      {?meth #(= 'this (second %) )}
      :-> `(proxy-super ~(-> ?meth first str (subs 1) symbol) ~@(->> ?meth (drop 2)))]
+
+    [(`+ ?a 1) :-> `(inc ~?a)]
+    [(`+ 1 ?a) :-> `(inc ~?a)]
+    [(`- ?a 1) :-> `(dec ~?a)]
+
+    [(`let [?a ?arr, ?ret (`aclone ?a)]
+       (`loop [?idx 0]
+        (if (`< ?idx (`alength ?a))
+          (do
+            ;; WIP drop the valueof?
+            (`aset ?ret (java.lang.Integer/valueOf ?idx) ?expr)
+            (recur (`inc ?idx)))
+          ?ret)))
+     :-> `(amap ~?arr ~?idx ~?ret ~?expr)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
