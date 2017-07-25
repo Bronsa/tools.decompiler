@@ -112,6 +112,10 @@
     [(clojure.lang.Util/identical ?a ?b) :-> `(identical? ~?a ~?b)]
     [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
     [(clojure.lang.Numbers/num ?a) :-> ?a]
+    [(java.lang.Long/valueOf ?a) #(num? %) :-> (long ?a)]
+    [(java.lang.Integer/valueOf ?a) #(num? %) :-> (int ?a)]
+    [(java.lang.Double/valueOf ?a) #(num? %) :-> (double ?a)]
+    [(java.lang.Float/valueOf ?a) #(num? %) :-> (float ?a)]
 
     [(do ?&body)
      {?&body #(some (fn [expr]
@@ -168,8 +172,8 @@
     [(.reset ?v (?f (.deref ?v) ?&args)) :-> `(vswap! ~?v ~?f ~@?&args)]
 
     [(`when-not (.equals ?ns ''clojure.core)
-       (`dosync ?&_)
-       nil)
+      (`dosync ?&_)
+      nil)
      :->
      nil]
 
@@ -283,7 +287,7 @@
 
     [(`when-let [?bind (`seq ?xs)]
       (`let [?x ?bind]
-       ?&body)) {?bind #(-> % name (.startsWith "xs__"))}
+       ?&body)) {?bind #(-> % name (.startsWith "xs--"))}
      :->
      `(when-first [~?x ~?xs]
         ~@?&body)]
@@ -330,8 +334,8 @@
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
     [(letfn* ?binds ?&body) :-> `(letfn ~(vec (for [[_ bind] (partition 2 ?binds)]
-                                               (rest bind)))
-                                  ~@?&body)]
+                                                (rest bind)))
+                                   ~@?&body)]
 
     [(`future-call (fn ([] ?&body))) :-> `(future ~@?&body)]
 
@@ -353,27 +357,41 @@
     [(`- ?a 1) :-> `(dec ~?a)]
 
     [(`let [?a ?arr, ?ret (`aclone ?a)]
-       (`loop [?idx 0]
-        (if (`< ?idx (`alength ?a))
-          (do
-            (`aset ?ret (java.lang.Integer/valueOf ?idx) ?expr)
-            (recur (`inc ?idx)))
-          ?ret)))
+      (`loop [?idx 0]
+       (if (`< ?idx (`alength ?a))
+         (do
+           (`aset ?ret (java.lang.Integer/valueOf ?idx) ?expr)
+           (recur (`inc ?idx)))
+         ?ret)))
      :-> `(amap ~?arr ~?idx ~?ret ~?expr)]
+
+    [(`case ?&exprs)
+     {?&exprs #(and (even? (count %))
+                    (compact (last %)
+                      [(do (throw (java.lang.IllegalArgumentException. (`str "No matching clause: " ?_))) ?&_) :-> true]
+                      :else false))}
+     :-> `(case ~@(butlast ?&exprs))]
+
+    [(`let [?g ?expr]
+      (`case ?g
+       ?&body))
+     {?g #(-> % name (.startsWith "G--"))}
+     :-> `(case ~?expr ~@?&body)]
 
     [(`let [?a ?arr ?len (`alength ?a)]
       (`loop [?idx 0, ?ret ?init]
        (if (`< ?idx ?len) (recur (`inc ?idx) ?expr) ?ret)))
      :-> `(areduce ~?arr ~?idx ~?ret ~?init ~?expr)]
 
-    [(`let [?g ?obj] (?f ?g ?&args) ?&exprs)
-     {?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
-     :-> `(doto ~?obj (~?f ~@?&args) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
+    [(`let [?x ?obj] (?f ?x ?&args) (?g ?x ?&args2) ?&exprs)
+     {?x #(-> % name (.startsWith "G--"))
+      ?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
+     :-> `(doto ~?obj (~?f ~@?&args) (~?g ~@?&args2) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype, doto
+;; WIP for, destructuring, assert, ns, condp, case, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype
 
 (defn macrocompact [source]
   (w/postwalk

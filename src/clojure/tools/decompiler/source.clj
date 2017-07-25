@@ -15,14 +15,19 @@
   val)
 
 (defmethod ast->clj :case [{:keys [shift mask default type switch-type skip-check exprs test]}]
-  `(case* ~(ast->clj test)
-          ~shift ~mask ~(ast->clj default)
-          ~(->> (for [[type match test expr] exprs]
-                  (if (= :collision type)
-                    [match [match (ast->clj expr)]]
-                    [match [(ast->clj test) (ast->clj expr)]]))
-               (into (sorted-map)))
-          ~type ~switch-type ~@(when skip-check [skip-check])))
+  `(case ~(ast->clj test)
+     ~@(->> (for [[type match test expr] exprs]
+              (if (= :collision type)
+                (mapcat (fn [[test expr]]
+                          (let [test (ast->clj test)
+                                test (if (seq? test)
+                                       (second test)
+                                       test)]
+                            [test (ast->clj expr)]))
+                        test)
+                [(ast->clj test) (ast->clj expr)]))
+            (mapcat identity))
+     ~(ast->clj default)))
 
 (defmethod ast->clj :monitor-enter [{:keys [sentinel]}]
   `(monitor-enter ~(ast->clj sentinel)))

@@ -668,7 +668,7 @@
                                                  :terminate? (pc= end-label))
                                           (process-insns))
                              test (expr+statements test-ctx)
-                             exprs (-> test :body :ret :body :ret)]
+                             exprs (-> test :ret :body :ret :body :ret)]
                          [:collision match (parse-collision-expr [] exprs) test (:recur? test-ctx)])
 
                        hash-test?

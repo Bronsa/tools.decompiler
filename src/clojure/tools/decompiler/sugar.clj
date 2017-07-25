@@ -22,7 +22,13 @@
       (update :test ast->sugared-ast)
       (update :default ast->sugared-ast)
       (update :exprs #(mapv (fn [[type match test expr]]
-                              [type match (if (= :collision type) test (ast->sugared-ast test)) (ast->sugared-ast expr)])
+                              [type match (if (= :collision type)
+                                            (mapv (fn [[test expr]]
+                                                    [(ast->sugared-ast test)
+                                                     (ast->sugared-ast expr)])
+                                                  test)
+                                            (ast->sugared-ast test))
+                               (ast->sugared-ast expr)])
                             %))))
 
 (defmethod ast->sugared-ast :local-variable [ast]
