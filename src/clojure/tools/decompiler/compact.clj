@@ -251,6 +251,8 @@
 
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
 
+    [(clojure.lang.Util/equiv ?a ?b) :-> `(= ~?a ~?b)]
+
     [(clojure.core/import* ?klass) :-> `(import ~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
