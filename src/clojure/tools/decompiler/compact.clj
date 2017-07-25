@@ -235,13 +235,13 @@
      {?t #(-> % name (.startsWith "and__"))}
      :->
      `(and ~?x ~?y)]
-    [(`and ?x (`and ?y ?z)) :->  `(and ~?x ~?y ~?z)]
+    [(`and ?x (`and ?y ?&z)) :->  `(and ~?x ~?y ~@?&z)]
 
     [(`let [?t ?x] (if ?t ?t ?y))
      {?t #(-> % name (.startsWith "or__"))}
      :->
      `(or ~?x ~?y)]
-    [(`or ?x (`or ?y ?z)) :-> `(or ~?x ~?y ~?z)]
+    [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
 
 
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
