@@ -20,8 +20,8 @@
       sym)))
 
 (defn maybe-guard [sym guards]
-  (if-let [sym-guards (get guards sym)]
-    (list sym :guard sym-guards)
+  (if-let [guard (get guards sym)]
+    (list sym :guard [guard])
     sym))
 
 (defn compile-pattern [form guards !occurs]
@@ -96,10 +96,10 @@
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
 
     [(do ?&body)
-     {?&body [#(some (fn [expr]
-                       (and (seq? expr)
-                            (= 'do (first expr))))
-                     %)]}
+     {?&body #(some (fn [expr]
+                      (and (seq? expr)
+                           (= 'do (first expr))))
+                    %)}
      :->
      (list* 'do (->> (for [expr ?&body
                            :when expr]
@@ -134,9 +134,9 @@
          `(with-bindings ~?binds ~@?&body)))]
 
     [(`with-bindings ?bindings ?&body)
-     {?bindings [map?
-                 #(contains? % 'clojure.lang.Compiler/LOADER)
-                 #(= 1 (count %))]}
+     {?bindings #(and (map? %)
+                      (contains? % 'clojure.lang.Compiler/LOADER)
+                      (= 1 (count %)))}
      :->
      `(do ~@?&body)]
 
@@ -192,7 +192,7 @@
       (`loop [?n 0]
        (`when (`< ?n ?c)
         ?&body)))
-     {?body [#(compact % [(recur (`+ ?a 1)) :-> true] :else false)]}
+     {?body #(compact % [(recur (`+ ?a 1)) :-> true] :else false)}
      :->
      `(dotimes [~?n ~?t]
         ~@(butlast ?&body))]
@@ -209,7 +209,7 @@
       (if ?x
         (`let [?z ?x] ?&body)
         ?else))
-     {?x [#(-> % name (.startsWith "temp__"))]}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      `(if-let [~?z ~?y] (do ~@?&body) ~?else)]
 
@@ -218,7 +218,7 @@
         nil
         (`let [?z ?x]
          ?&body)))
-     {?x [#(-> % name (.startsWith "temp__"))]}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      `(when-some [~?z ~?y] ~@?&body)]
 
@@ -227,18 +227,18 @@
         ?else
         (`let [?z ?x]
          ?&body)))
-     {?x [#(-> % name (.startsWith "temp__"))]}
+     {?x #(-> % name (.startsWith "temp__"))}
      :->
      `(if-some [~?z ~?y] (do ~@?&body) ~?else)]
 
     [(`let [?t ?x] (if ?t ?y ?t))
-     {?t [#(-> % name (.startsWith "and__"))]}
+     {?t #(-> % name (.startsWith "and__"))}
      :->
      `(and ~?x ~?y)]
     [(`and ?x (`and ?y ?z)) :->  `(and ~?x ~?y ~?z)]
 
     [(`let [?t ?x] (if ?t ?t ?y))
-     {?t [#(-> % name (.startsWith "or__"))]}
+     {?t #(-> % name (.startsWith "or__"))}
      :->
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?z)) :-> `(or ~?x ~?y ~?z)]
@@ -249,11 +249,11 @@
     [(import* ?klass) :-> `(import ~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
-    [(`reset-meta! ?var ?meta) {?meta [map?
-                                       (some-fn #(every? % #{:line :column :file})
-                                                #(every? % #{:column :arglists}))]} :-> nil]
+    [(`reset-meta! ?var ?meta) {?meta (every-pred map?
+                                                  (some-fn #(every? % #{:line :column :file})
+                                                           #(every? % #{:column :arglists})))} :-> nil]
 
-    [(.withMeta (`list ?&body) ?meta) {?meta [#(= [:line :column] (keys %))]} :-> (list ~@?&body)]
+    [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
 
     [(do nil
          (`let [?v (var ?var)]
