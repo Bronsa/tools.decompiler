@@ -294,6 +294,34 @@
      `(when-first [~?x ~?xs]
         ~@?&body)]
 
+    [(if (`nil? ?g)
+       nil
+       (?f ?g ?&args))
+     {?g #(-> % name (.startsWith "G--"))}
+     :-> `(some-> ~?g (~?f ~@?&args))]
+
+    [(`let [?g (`some-> ?g ?&exprs)]
+      (`some-> ?g ?&exprs2))
+     :-> `(some-> ~?g ~@?&exprs ~@?&exprs2)]
+
+    [(`let [?g ?expr]
+      (`some-> ?g ?&exprs2))
+     :-> `(some-> ~?expr ~@?&exprs2)]
+
+    [(`if ?test
+      (?f ?g ?&args)
+      ?g)
+     {?g #(-> % name (.startsWith "G--"))}
+     :-> `(cond-> ~?g ~?test (~?f ~@?&args))]
+
+    [(`let [?g (`cond-> ?g ?&exprs)]
+      (`cond-> ?g ?&exprs2))
+     :-> `(cond-> ~?g ~@?&exprs ~@?&exprs2)]
+
+    [(`let [?g ?expr]
+      (`cond-> ?g ?&exprs2))
+     :-> `(cond-> ~?expr ~@?&exprs2)]
+
     [(do nil
          (`let [?v (var ?var)]
           (if (`and (.hasRoot ?v)
@@ -393,7 +421,7 @@
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, with-redefs, cond/as/some->/>>, definterface, defprotocol, defrecord, deftype
+;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface, defprotocol, defrecord, deftype
 
 (defn macrocompact [source]
   (w/postwalk
