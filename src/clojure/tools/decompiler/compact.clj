@@ -11,6 +11,28 @@
             [clojure.string :as s]
             [clojure.walk :as w]))
 
+(defn remove-defrecord-methods [methods]
+  (for [[name :as method] methods
+        :when (not ('#{hasheq hashCode equals meta withMeta valAt getLookupThunk
+                       count empty cons equiv containsKey entryAt seq iterator
+                       assoc without size isEmpty containsValue get put
+                       remove putAll clear keySet values entrySet}
+                    name))]
+    method))
+
+(defn remove-defrecord-interfaces [interfaces]
+  (remove '#{clojure.lang.IHashEq
+             clojure.lang.IObj
+             clojure.lang.ILookup
+             clojure.lang.IKeywordLookup
+             clojure.lang.IPersistentMap
+             java.util.Map
+             java.io.Serializable}
+    interfaces))
+
+(defn remove-defrecord-fields [fields]
+  (vec (remove '#{__meta __extmap __hash __hasheq}  fields)))
+
 (defn register! [sym !occurs]
   (if (contains? @!occurs sym)
     (let [s (gensym (str (name sym) "_"))]
@@ -46,7 +68,9 @@
                        (= 3 (count fname)))
                 '_
                 (maybe-guard (register! form !occurs) guards))]
-          [(maybe-guard (register! form !occurs) guards)]))
+          (if (= \_ (second fname))
+            [form]
+            [(maybe-guard (register! form !occurs) guards)])))
       [(list 'quote form)])
 
     :else
@@ -297,7 +321,7 @@
     [(if (`nil? ?g)
        nil
        (?f ?g ?&args))
-     {?g #(-> % name (.startsWith "G__"))}
+     {?g #(and (symbol? %) (-> % name (.startsWith "G__")))}
      :-> `(some-> ~?g (~?f ~@?&args))]
 
     [(`let [?g (`some-> ?g ?&exprs)]
@@ -311,7 +335,7 @@
     [(`if ?test
       (?f ?g ?&args)
       ?g)
-     {?g #(-> % name (.startsWith "G__"))}
+     {?g #(and (symbol? %) (-> % name (.startsWith "G__")))}
      :-> `(cond-> ~?g ~?test (~?f ~@?&args))]
 
     [(`let [?g (`cond-> ?g ?&exprs)]
@@ -418,10 +442,30 @@
       ?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
      :-> `(doto ~?obj (~?f ~@?&args) (~?g ~@?&args2) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 
+    [(do
+       nil
+       (var ?_)
+       nil
+       (var ?__)
+       (deftype* ?record ?rtype ?argv :implements ?interfaces ?&impls)
+       ?&_)
+     {?interfaces #(some #{'clojure.lang.IRecord} %)}
+
+     :-> `(defrecord ~(symbol (name ?record)) ~(remove-defrecord-fields ?argv)
+            ~@(remove-defrecord-interfaces ?interfaces) ~@(remove-defrecord-methods ?&impls))]
+
+    [(do
+       (deftype* ?type ?ttype ?argv :implements ?interfaces ?&impls)
+       ?&_)
+     {?interfaces #(some #{'clojure.lang.IType} %)}
+
+     :-> `(deftype ~(symbol (name ?type)) ~?argv
+            ~@(remove #{'clojure.lang.IType} ?interfaces) ~@?&impls)]
+
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface, defprotocol, defrecord, deftype
+;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface, defprotocol
 
 (defn macrocompact [source]
   (w/postwalk
