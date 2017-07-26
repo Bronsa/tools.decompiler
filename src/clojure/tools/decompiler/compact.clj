@@ -301,9 +301,7 @@
     [(clojure.core/import* ?klass) :-> `(import '~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
-    [(`reset-meta! ?var ?meta) {?meta (every-pred map?
-                                                  (some-fn #(every? % #{:line :column :file})
-                                                           #(every? % #{:column :arglists})))} :-> nil]
+    [(`reset-meta! ?var ?meta) {?meta #(and (map? %) (#{[:column] [:column :arglists] [:line :column :file]} (keys %)))} :-> nil]
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
     [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
