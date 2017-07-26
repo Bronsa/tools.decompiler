@@ -396,6 +396,7 @@
     [(`future-call (fn ([] ?&body))) :-> `(future ~@?&body)]
 
     [(reify* ?interfaces ?&methods) :-> `(reify ~@?interfaces ~@?&methods)]
+    [(.withMeta (`reify ?&body) ?_) :-> `(reify ~@?&body)]
 
     [(`let [?p (?ctor)]
       (`init-proxy ?p ?methods-map)
