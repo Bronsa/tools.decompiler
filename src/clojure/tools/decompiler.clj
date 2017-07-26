@@ -21,6 +21,9 @@
       (io/file)
       (.getAbsolutePath)))
 
+(defn ->pprint-str [source]
+  (with-out-str (fp/pprint source {:width 100})))
+
 (defn classfile->source [filename bc-for]
   (-> filename
       (absolute-filename)
@@ -30,7 +33,8 @@
       (src/ast->clj)
       (cmp/macrocompact)
       (->> (keep identity)
-           (remove #(and (seq? %) (= 'var (first %)))))))
+           (remove #(and (seq? %) (= 'var (first %)))))
+      (->pprint-str)))
 
 (defn cname [c input-path]
   (-> c
@@ -62,9 +66,8 @@
                   ns-name (subs cname 0 (- (count cname) (count "__init")))
                   ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]]
       (println (str "Decompiling " init (when output-path (str " to " ns-file))))
-      (let [source (classfile->source init (bc-for classname->path))
-            pprinted-source (with-out-str (fp/pprint source {:width 100}))]
+      (let [source (classfile->source init (bc-for classname->path))]
         (if output-path
           (do (io/make-parents ns-file)
-              (spit ns-file pprinted-source))
-          (println pprinted-source))))))
+              (spit ns-file source))
+          (println source))))))
