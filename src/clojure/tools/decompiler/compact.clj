@@ -22,6 +22,7 @@
 
 (defn remove-defrecord-interfaces [interfaces]
   (remove '#{clojure.lang.IHashEq
+             clojure.lang.IRecord
              clojure.lang.IObj
              clojure.lang.ILookup
              clojure.lang.IKeywordLookup
@@ -445,17 +446,19 @@
       ?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
      :-> `(doto ~?obj (~?f ~@?&args) (~?g ~@?&args2) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 
+    [(deftype* ?record ?rtype ?argv :implements ?interfaces ?&impls)
+     {?interfaces #(some #{'clojure.lang.IRecord} %)}
+
+     :-> `(defrecord ~(symbol (name ?record)) ~(remove-defrecord-fields ?argv)
+            ~@(remove-defrecord-interfaces ?interfaces) ~@(remove-defrecord-methods ?&impls))]
     [(do
        nil
        (var ?_)
        nil
        (var ?__)
-       (deftype* ?record ?rtype ?argv :implements ?interfaces ?&impls)
+       (`defrecord ?&body)
        ?&_)
-     {?interfaces #(some #{'clojure.lang.IRecord} %)}
-
-     :-> `(defrecord ~(symbol (name ?record)) ~(remove-defrecord-fields ?argv)
-            ~@(remove-defrecord-interfaces ?interfaces) ~@(remove-defrecord-methods ?&impls))]
+     :-> `(defrecord ~@?&body)]
 
     [(`alter-meta! (var ?v) `assoc :doc nil) :-> nil]
     [((var clojure.core/assert-same-protocol) ?&_) :-> nil]
@@ -466,13 +469,13 @@
                      [(symbol (name f)) (map #(mapv second %) (rest arglists))])
                 (mapcat identity)))]
 
-    [(do
-       (deftype* ?type ?ttype ?argv :implements ?interfaces ?&impls)
-       ?&_)
+    [(deftype* ?type ?ttype ?argv :implements ?interfaces ?&impls)
      {?interfaces #(some #{'clojure.lang.IType} %)}
 
      :-> `(deftype ~(symbol (name ?type)) ~?argv
             ~@(remove #{'clojure.lang.IType} ?interfaces) ~@?&impls)]
+
+    [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
