@@ -8,6 +8,7 @@
 
 (ns clojure.tools.decompiler.ast
   (:require [clojure.set :as set]
+            [clojure.string :as s]
             [clojure.tools.decompiler.bc :as bc]
             [clojure.tools.decompiler.utils :refer [peek-n pop-n] :as u]))
 
@@ -811,15 +812,22 @@
         (update :statements conj {:op :throw
                                   :ex ex}))))
 
-
-(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for ^String class-name] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))
         [target & args] (peek-n stack argc)
-        ?deftype-ast (when (= "importClass" target-name)
-                       (when-let [bc (bc-for (-> args first :args first :val))]
-                         (when (some #{"clojure.lang.IType" "clojure.lang.IRecord"} (:class/interfaces bc))
-                           (bc->ast bc {:bc-for bc-for}))))]
+        ?deftype-ast (when (and (= "importClass" target-name)
+                                (= "clojure.lang.Namespace" target-class))
+                       (let [^String cname (-> args first :args first :val)]
+                         (when-let [bc (and (= (subs cname 0 (.lastIndexOf cname "."))
+                                               (let [i (.indexOf class-name "$")]
+                                                 (-> class-name
+                                                     (s/replace "__init" "")
+                                                     (cond-> (not= i -1)
+                                                       (subs 0 i)))))
+                                            (bc-for cname))]
+                           (when (some #{"clojure.lang.IType" "clojure.lang.IRecord"} (:class/interfaces bc))
+                             (bc->ast bc {:bc-for bc-for})))))]
     (-> ctx
         (update :stack pop-n argc)
         (update (if (= "void" target-ret-type) :statements :stack)

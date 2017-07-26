@@ -4,7 +4,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :jvm-opts  ["-XX:-OmitStackTraceInFastThrow"]
-  :dependencies [[org.clojure/clojure "1.9.0-master-SNAPSHOT"]
+  :dependencies [[org.clojure/clojure "1.9.0-alpha17"]
                  [org.clojure/core.match "0.3.0-alpha5"]
                  [org.apache.bcel/bcel "6.0"]
                  [fipp "0.6.9"]])
