@@ -36,8 +36,10 @@
                         (when (= 'clojure.core/refer-clojure (first x))
                           (let [ex (->> x (drop-while (complement #{:exclude})) second)]
                             (when (vector? ex)
-                              ;; WIP if list
-                              (swap! !aliases assoc "clojure.core" (->> ex (map (comp str second)) (into #{}))))))
+                              (swap! !aliases assoc "clojure.core" (->> ex (map (comp str second)) (into #{}))))
+                            (when (list? ex)
+                              ;; assumes withMeta
+                              (swap! !aliases assoc "clojure.core" (->> ex second rest (map (comp str second)) (into #{}))))))
                         (when (= 'clojure.core/require (first x))
                           (doseq [req (rest x)
                                   :when (vector? req)]
