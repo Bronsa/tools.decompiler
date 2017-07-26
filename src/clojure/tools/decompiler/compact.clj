@@ -382,11 +382,11 @@
        (var ?var))) :-> `(defonce ~?name ~?expr)]
 
     [(`loop []
-      (when ?test
+      (`when ?test
         ?&body))
      {?&body #(= '(recur) (last %))}
      :->
-     `(while ?test ~@(butlast ?&body))]
+     `(while ~?test ~@(butlast ?&body))]
 
     [(.addMethod ?multi ?dispatch-val (`fn ?&body)) :-> `(defmethod ~?multi ~?dispatch-val ~@?&body)]
 
