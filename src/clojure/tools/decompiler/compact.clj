@@ -306,6 +306,7 @@
                                                            #(every? % #{:column :arglists})))} :-> nil]
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
+    [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
 
     [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(dosync ~@?&body)]
 

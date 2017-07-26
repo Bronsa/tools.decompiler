@@ -33,6 +33,10 @@
                     (if (= 'quote (first x))
                       x
                       (do
+                        (when (= 'clojure.core/in-ns (first x))
+                          (let [ns (-> x second second)
+                                ns (if (list? ns) (second ns) ns)]
+                            (swap! !aliases assoc (name ns) "")))
                         (when (= 'clojure.core/refer-clojure (first x))
                           (let [ex (->> x (drop-while (complement #{:exclude})) second)]
                             (when (vector? ex)
@@ -46,7 +50,7 @@
                             (when-let [alias (some->> req (drop-while (complement #{:as})) second second name)]
                               (let [ns (some-> req first second name)]
                                 (when-not (= ns "clojure.core")
-                                 (swap! !aliases assoc ns alias))))))
+                                  (swap! !aliases assoc ns alias))))))
                         (w f x)))
                     (if (symbol? x)
                       (let [aliases @!aliases]
@@ -55,7 +59,9 @@
                             x
                             (symbol (name x)))
                           (if-let [alias (get aliases (namespace x))]
-                            (symbol (str alias "/" (name x)))
+                            (if (= "" alias)
+                              (symbol (name x))
+                              (symbol (str alias "/" (name x))))
                             x)))
                       (w f x)))))]
     (w f source)))
