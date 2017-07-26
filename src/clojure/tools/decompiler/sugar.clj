@@ -351,9 +351,14 @@
 
       (and (= target "clojure.lang.Tuple")
            (= method "create"))
-
       {:op :vector
        :items args}
+
+      (and (= target "clojure.lang.PersistentHashSet")
+           (= method "create")
+           (= :array (:op (first args))))
+      {:op :set
+       :items (-> args first :!items deref)}
 
       (and (= target "clojure.lang.PersistentList")
            (= method "create")
