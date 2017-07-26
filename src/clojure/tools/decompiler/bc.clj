@@ -7,6 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns clojure.tools.decompiler.bc
+  (:require [clojure.string :as s])
   (:import (org.apache.bcel.classfile ClassParser JavaClass Field AccessFlags Method
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility LocalVariable)
@@ -128,8 +129,10 @@
        (reduce add-labels [])))
 
 (defn fixup-name [name]
-  (or (second (re-matches #"(.*__auto__)[0-9]+$" name)) name))
-
+  (let [name (or (second (re-matches #"(.*__auto__)[0-9]+$" name)) name)]
+    (reduce (fn [n [p m]] (s/replace n p (str m)))
+            name
+            (dissoc clojure.lang.Compiler/DEMUNGE_MAP "_"))))
 
 (defn fixup-lvt [lvt]
   (let [els (group-by (comp zero? :local-variable/start-label) lvt)
