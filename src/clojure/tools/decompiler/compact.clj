@@ -377,7 +377,7 @@
 
     [(`let [?v (var ?var)]
       (`when-not (.hasRoot ?v)
-       nil
+       ?_
        (def ?name ?expr)
        (var ?var))) :-> `(defonce ~?name ~?expr)]
 
