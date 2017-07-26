@@ -303,7 +303,7 @@
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
     [(`reset-meta! ?var ?meta) {?meta #(and (map? %) (#{[:column] [:column :arglists] [:line :column :file]} (keys %)))} :-> nil]
 
-    [(.withMeta (`list ?&body) ?meta) {?meta #(= [:line :column] (keys %))} :-> (list ~@?&body)]
+    [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{[:column] [:line :column]} (keys %)))} :-> `(list ~@?&body)]
     [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
 
     [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(dosync ~@?&body)]
@@ -353,7 +353,7 @@
        (`let [?v (var ?var)]
         (`when-not (`and (.hasRoot ?v)
                     (`instance? clojure.lang.MultiFn (`deref ?v)))
-         nil
+         ?_
          (def ?name (clojure.lang.MultiFn. ?sname ?dispatch-fn ?d ?h))
          (var ?var))))
      :->
