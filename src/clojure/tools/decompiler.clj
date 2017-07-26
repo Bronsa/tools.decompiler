@@ -33,7 +33,9 @@
                     (if (= 'quote (first x))
                       x
                       (do
-                        (when (= 'clojure.core/in-ns (first x))
+                        (when (and (= 'clojure.core/in-ns (first x))
+                                   (seq? (second x))
+                                   (= 'quote (-> x second first)))
                           (let [ns (-> x second second)
                                 ns (if (list? ns) (second ns) ns)]
                             (swap! !aliases assoc (name ns) "")))
