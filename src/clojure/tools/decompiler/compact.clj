@@ -126,7 +126,8 @@
     [(`when-let ?bindings (do ?&body)) :-> `(when-let ~?bindings ~@?&body)]
     [(`when-some ?bindings (do ?&body)) :-> `(when-some ~?bindings ~@?&body)]
     [(`fn (?bindings (do ?&body))) :-> `(fn (~?bindings ~@?&body))]
-    [(if ?test nil (do ?&body)) :-> `(when-not ~?test ~@?&body)]
+    [(if ?test nil ?&body) :-> `(when-not ~?test ~@?&body)]
+    [(`when-not ?bindings (do ?&body)) :-> `(when-not ~?bindings ~@?&body)]
 
     [(clojure.lang.RT/count ?arg) :-> `(count ~?arg)]
     [(clojure.lang.RT/nth ?&args) :-> `(nth ~@?&args)]
