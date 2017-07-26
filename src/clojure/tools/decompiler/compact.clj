@@ -114,6 +114,7 @@
 
 (defn macrocompact-step [expr]
   (compact expr
+    [(do ?ret) :-> ?ret]
     [(`let [?a ?b] (`let ?binds ?&body)) :-> `(let [~?a ~?b ~@?binds] ~@?&body)]
     [(fn* ?&body) :-> `(fn ~@?&body)]
     [(let* ?binds ?&body) :-> `(let ~?binds ~@?&body)]
@@ -310,7 +311,7 @@
     ;; WIP custom message
     [(if (clojure.lang.LockingInTransaction/isRunning)
        (throw ?_)
-       (do ?&body)) :-> `(io! ~@?&body)]
+       ?body) :-> `(io! ~?body)]
 
     [(`when-let [?bind (`seq ?xs)]
       (`let [?x ?bind]
