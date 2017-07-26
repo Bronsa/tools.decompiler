@@ -302,9 +302,12 @@
     [(clojure.core/import* ?klass) :-> `(import '~(symbol ?klass))]
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
-    [(`reset-meta! ?var ?meta) {?meta #(and (map? %) (#{[:column] [:column :arglists] [:line :column :file]} (keys %)))} :-> nil]
+    [(`reset-meta! ?var ?meta) {?meta #(and (map? %)
+                                            (#{#{:column} #{:column :arglists} #{:line :column :file}
+                                               #{:line :column :file :doc}
+                                               #{:line :column :file :doc :arglists}} (set (keys %))))} :-> nil]
 
-    [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{[:column] [:line :column]} (keys %)))} :-> `(list ~@?&body)]
+    [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{#{:line} #{:column} #{:line :column}} (set (keys %))))} :-> `(list ~@?&body)]
     [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
 
     [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(dosync ~@?&body)]
@@ -478,6 +481,8 @@
             ~@(remove #{'clojure.lang.IType} ?interfaces) ~@?&impls)]
 
     [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
+
+    [(.set (var ?v) ?val) ?-> `(set! (var ~?v) ~?val)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
