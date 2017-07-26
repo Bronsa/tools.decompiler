@@ -372,6 +372,8 @@
        ?&body))
      :-> `(with-in-str ~@?&body)]
 
+    [(clojure.lang.RT/classForName ?class) {?class string?} :-> (symbol ?class)]
+
     [(`refer ''clojure.core ?&filters) :-> `(refer-clojure ~@?&filters)]
 
     [(`let [?v (var ?var)]
