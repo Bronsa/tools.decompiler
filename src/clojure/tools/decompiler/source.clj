@@ -60,7 +60,7 @@
            ~(ast->clj body)))
 
 (defmethod ast->clj :method [{:keys [name args body]}]
-  `(~(demunge name) [~@(map (comp demunge :name) args)] ~(ast->clj body)))
+  `(~(demunge name) [~@(map (comp symbol :name) args)] ~(ast->clj body)))
 
 (defmethod ast->clj :reify [{:keys [interfaces methods]}]
   `(reify* ~(mapv symbol interfaces)
