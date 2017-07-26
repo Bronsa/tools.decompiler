@@ -129,7 +129,7 @@
        (reduce add-labels [])))
 
 (defn fixup-name [name]
-  (let [name (or (second (re-matches #"(.*__auto__)[0-9]+$" name)) name)]
+  (let [name (or (second (re-matches #"(.*)__auto__[0-9]+$" name)) name)]
     (reduce (fn [n [p m]] (s/replace n p (str m)))
             name
             (dissoc clojure.lang.Compiler/DEMUNGE_MAP "_"))))
