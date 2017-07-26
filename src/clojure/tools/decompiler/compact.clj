@@ -205,7 +205,7 @@
      :->
      nil]
 
-    [(if ?test1 ?then1 (`when ?test2 ?then2)) :-> `(cond ~?test1 ~?then1 ~?test2 ~?then2)]
+    [(if ?test1 ?then1 (`when ?test2 ?&then2)) :-> `(cond ~?test1 ~?then1 ~?test2 (do ~@?&then2))]
     [(if ?test1 ?then1 (`cond ?&body)) :-> `(cond ~?test1 ~?then1 ~@?&body)]
 
     [(loop* ?&l) :-> `(loop ~@?&l)]
