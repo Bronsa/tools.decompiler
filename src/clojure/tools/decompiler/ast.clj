@@ -911,7 +911,7 @@
         ctx (update ctx :stack pop)]
     (if (= target-class class-name)
       (-> ctx
-          (update :stack conj (get fields target-name {:op :local :name target-name}))
+          (update :stack conj (get fields target-name {:op :local :name (bc/fixup-name target-name)}))
           (skip-locals-clearing-field))
       (update ctx :stack conj {:op :instance-field
                                :instance instance
