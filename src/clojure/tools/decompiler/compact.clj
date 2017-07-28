@@ -8,8 +8,12 @@
 
 (ns clojure.tools.decompiler.compact
   (:require [clojure.core.match :as m]
+            [clojure.core.match.protocols :as mp]
             [clojure.string :as s]
-            [clojure.walk :as w]))
+            [clojure.walk :as w])
+  (:import (clojure.core.match LeafNode FailNode BindNode SwitchNode)
+           clojure.core.match.protocols.IPatternCompile
+           clojure.lang.ExceptionInfo))
 
 (defn remove-defrecord-methods [methods]
   (for [[name :as method] methods
@@ -83,9 +87,62 @@
                :when (seq unifiers)]
            `(= ~bind ~@unifiers))))
 
-(def backtrack-all (Exception.))
+(defn cont! [f]
+  (throw (ex-info "" {::cont f})))
 
-(defn compile-patterns [patterns]
+(defprotocol NodeToClj (to-clj [_]))
+
+(defn dag-clause-to-clj [occurrence cont pattern action]
+  (let [test (if (instance? IPatternCompile pattern)
+               (mp/to-source* pattern occurrence)
+               (m/to-source pattern occurrence))]
+    [test (to-clj (assoc action :cont cont))]))
+
+(extend-protocol NodeToClj
+  LeafNode
+  (to-clj [{:keys [value bindings]}]
+    (if (not (empty? bindings))
+      (let [bindings (remove (fn [[sym _]] (= sym '_))
+                             bindings)]
+        `(let [~@(apply concat bindings)]
+           ~value))
+      value))
+
+  FailNode
+  (to-clj [{:keys [cont]}]
+    `(cont! ~cont))
+
+  BindNode
+  (to-clj [{:keys [bindings node cont]}]
+    `(let [~@bindings]
+       ~(to-clj (assoc node :cont cont))))
+
+  SwitchNode
+  (to-clj [{:keys [occurrence cases default cont]}]
+    (let [_default-cont (gensym "default-cont_")
+
+          clauses (doall
+                   (mapcat (partial apply dag-clause-to-clj occurrence _default-cont) cases))
+          bind-expr (-> occurrence meta :bind-expr)
+          cond-expr `(cond ~@clauses
+                           :else
+                           (cont! ~_default-cont))]
+      `(let [~_default-cont (fn [] ~(to-clj (assoc default :cont cont)))
+             ~@(when bind-expr [occurrence bind-expr])]
+         ~cond-expr))))
+
+(defn run-match [f]
+  (let [ret (try (f)
+                 (catch ExceptionInfo e
+                   (let [data (ex-data e)]
+                     (if (::cont data)
+                       data
+                       (throw e)))))]
+    (if-let [cont (::cont ret)]
+      (recur cont)
+      ret)))
+
+(defn compile-patterns [patterns cont]
   (->> (for [pattern patterns
              :let [[pattern guards _ replacement] (if (map? (second pattern))
                                                     pattern
@@ -93,25 +150,28 @@
                    !occurs (atom {})]]
          [(compile-pattern pattern guards !occurs) `(if ~(assert-unify @!occurs)
                                                       ~replacement
-                                                      (throw backtrack-all))])
+                                                      (cont! ~cont))])
        (mapcat identity)))
 
 (defmacro compact
   {:style/indent 1}
   [expr & patterns]
-  (let [_expr (gensym)
+  (let [_expr (gensym "expr_")
+        _cont (gensym "cont_")
         [patterns else] (if (= :else (last (butlast patterns)))
                           [(-> patterns butlast butlast) (last patterns)]
                           [patterns _expr])]
-    `(let [~_expr ~expr]
-       (try
-         (m/match [~_expr]
-                  ~@(compile-patterns patterns)
-                  :else ~else)
-         (catch Exception e#
-           (if (identical? e# backtrack-all)
-             ~else
-             (throw e#)))))))
+
+    (binding [m/*line* (-> &form meta :line)
+              m/*locals* (dissoc &env '_)
+              m/*warned* (atom false)]
+      `(let [~_expr ~expr
+             ~_cont (fn [] ~else)]
+         (run-match (fn []
+                      ~(-> (m/emit-matrix [expr] (concat (compile-patterns patterns _cont) [:else else]))
+                           m/compile
+                           (assoc :cont _cont)
+                           to-clj)))))))
 
 (defn macrocompact-step [expr]
   (compact expr
