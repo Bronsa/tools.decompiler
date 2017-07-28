@@ -104,15 +104,20 @@
                                       files))
         inits (if classes
                 (mapv classname->path classes)
-                (filter (fn [^String i] (.endsWith i "__init.class")) files))]
+                (filter (fn [^String i] (.endsWith i "__init.class")) files))
+        *log* (agent nil)]
 
-    (doseq [init inits
-            :let [cname (cname init input-path)
-                  ns-name (subs cname 0 (- (count cname) (count "__init")))
-                  ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]]
-      (println (str "Decompiling " init (when output-path (str " to " ns-file))))
-      (let [source (classfile->source init (bc-for classname->path))]
-        (if output-path
-          (do (io/make-parents ns-file)
-              (spit ns-file source))
-          (println source))))))
+    (dorun
+     (pmap
+      (fn [init]
+        (let [cname (cname init input-path)
+              ns-name (subs cname 0 (- (count cname) (count "__init")))
+              ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]
+          (send-off *log* (fn [& _] (println (str "Decompiling " init (when output-path (str " to " ns-file))))))
+          (let [source (classfile->source init (bc-for classname->path))]
+            (if output-path
+              (do (io/make-parents ns-file)
+                  (spit ns-file source))
+              (println source)))))
+      inits))
+    nil))
