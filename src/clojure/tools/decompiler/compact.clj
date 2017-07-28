@@ -88,7 +88,7 @@
            `(= ~bind ~@unifiers))))
 
 (defn cont! [f]
-  (throw (ex-info "" {::cont f})))
+  {::cont f})
 
 (defprotocol NodeToClj (to-clj [_]))
 
@@ -140,12 +140,7 @@
          ~cond-expr))))
 
 (defn run-match [f]
-  (let [ret (try (f)
-                 (catch ExceptionInfo e
-                   (let [data (ex-data e)]
-                     (if (::cont data)
-                       data
-                       (throw e)))))]
+  (let [ret (f)]
     (if-let [cont (::cont ret)]
       (recur cont)
       ret)))
