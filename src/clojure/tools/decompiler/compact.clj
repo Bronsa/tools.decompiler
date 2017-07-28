@@ -92,6 +92,8 @@
 
 (defprotocol NodeToClj (to-clj [_]))
 
+(def ^:dynamic *conts*)
+
 (defn dag-clause-to-clj [occurrence cont pattern action]
   (let [test (if (instance? IPatternCompile pattern)
                (mp/to-source* pattern occurrence)
@@ -120,7 +122,7 @@
   SwitchNode
   (to-clj [{:keys [occurrence cases default cont]}]
     (let [default-cont (when-not (instance? FailNode default)
-                         `(fn [] ~(to-clj (assoc default :cont cont))))
+                         `([] ~(to-clj (assoc default :cont cont))))
 
           _default-cont (if default-cont (gensym "default-cont_") cont)
 
@@ -130,8 +132,11 @@
           cond-expr `(cond ~@clauses
                            :else
                            (cont! ~_default-cont))]
-      `(let [~@(when default-cont [_default-cont default-cont])
-             ~@(when bind-expr [occurrence bind-expr])]
+
+      (when default-cont
+        (swap! *conts* conj (list* _default-cont default-cont)))
+
+      `(let [~@(when bind-expr [occurrence bind-expr])]
          ~cond-expr))))
 
 (defn run-match [f]
@@ -151,9 +156,11 @@
                                                     pattern
                                                     [(first pattern) {} nil (last pattern)])
                    !occurs (atom {})]]
-         [(compile-pattern pattern guards !occurs) `(if ~(assert-unify @!occurs)
-                                                      ~replacement
-                                                      (cont! ~cont))])
+         [(compile-pattern pattern guards !occurs) (if (seq @!occurs)
+                                                     `(if ~(assert-unify @!occurs)
+                                                        ~replacement
+                                                        (cont! ~cont))
+                                                     replacement)])
        (mapcat identity)))
 
 (defmacro compact
@@ -167,14 +174,17 @@
 
     (binding [m/*line* (-> &form meta :line)
               m/*locals* (dissoc &env '_)
-              m/*warned* (atom false)]
-      `(let [~_expr ~expr
-             ~_cont (fn [] ~else)]
-         (run-match (fn []
-                      ~(-> (m/emit-matrix [expr] (concat (compile-patterns patterns _cont) [:else else]))
-                           m/compile
-                           (assoc :cont _cont)
-                           to-clj)))))))
+              m/*warned* (atom false)
+              *conts* (atom #{})]
+      (let [init (-> (m/emit-matrix [expr] (concat (compile-patterns patterns _cont) [:else else]))
+                     m/compile
+                     (assoc :cont _cont)
+                     to-clj)]
+        `(run-match (fn []
+                      (let [~_expr ~expr
+                            ~_cont (fn [] ~else)]
+                        (letfn [~@@*conts*]
+                          ~init))))))))
 
 (defn macrocompact-step [expr]
   (compact expr
