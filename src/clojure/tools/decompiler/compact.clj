@@ -119,7 +119,10 @@
 
   SwitchNode
   (to-clj [{:keys [occurrence cases default cont]}]
-    (let [_default-cont (gensym "default-cont_")
+    (let [default-cont (when-not (instance? FailNode default)
+                         `(fn [] ~(to-clj (assoc default :cont cont))))
+
+          _default-cont (if default-cont (gensym "default-cont_") cont)
 
           clauses (doall
                    (mapcat (partial apply dag-clause-to-clj occurrence _default-cont) cases))
@@ -127,7 +130,7 @@
           cond-expr `(cond ~@clauses
                            :else
                            (cont! ~_default-cont))]
-      `(let [~_default-cont (fn [] ~(to-clj (assoc default :cont cont)))
+      `(let [~@(when default-cont [_default-cont default-cont])
              ~@(when bind-expr [occurrence bind-expr])]
          ~cond-expr))))
 
