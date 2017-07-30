@@ -214,6 +214,8 @@
     [(java.lang.Double/valueOf ?a) {?a number?} :-> (double ?a)]
     [(java.lang.Float/valueOf ?a) {?a number?} :-> (float ?a)]
 
+    [(.get (var ?v)) :-> ?v]
+
     [(do ?&body)
      {?&body #(some (fn [expr]
                       (and (seq? expr)
