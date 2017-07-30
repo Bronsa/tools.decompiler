@@ -15,6 +15,7 @@
            clojure.core.match.protocols.IPatternCompile
            clojure.lang.ExceptionInfo))
 
+;; WIP recur
 (defn compact-sequential-destructuring [binds]
   (loop [[[b v :as bind] & binds] (partition 2 binds)
          ret []]
@@ -655,6 +656,11 @@
     [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
 
     [(`let [?&binds] ?&body)
+     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "map__")) (take-nth 2 binds)))}
+     :->
+     `(let [~@(compact-associative-destructuring ?&binds)] ~@?&body)]
+
+    [(`let [?&binds] ?&body)
      {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "seq__")) (take-nth 2 binds)))}
      :->
      `(let [~@(compact-sequential-destructuring ?&binds)] ~@?&body)]
@@ -663,11 +669,6 @@
      {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "vec__")) (take-nth 2 binds)))}
      :->
      `(let [~@(compact-vec-destructuring ?&binds)] ~@?&body)]
-
-    [(`let [?&binds] ?&body)
-     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "map__")) (take-nth 2 binds)))}
-     :->
-     `(let [~@(compact-associative-destructuring ?&binds)] ~@?&body)]
 
     [(.set (var ?v) ?val) ?-> `(set! ~?v ~?val)]
 
