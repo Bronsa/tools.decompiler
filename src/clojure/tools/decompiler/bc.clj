@@ -12,16 +12,19 @@
                                       ConstantPool ConstantObject ConstantCP ConstantNameAndType
                                       Utility LocalVariable)
            (org.apache.bcel.generic Instruction InstructionList BranchInstruction CPInstruction ConstantPushInstruction MethodGen
-                                    ConstantPoolGen LocalVariableInstruction TypedInstruction IndexedInstruction CodeExceptionGen NEWARRAY Select)))
+                                    ConstantPoolGen LocalVariableInstruction TypedInstruction IndexedInstruction CodeExceptionGen NEWARRAY Select)
+           java.io.ByteArrayInputStream
+           clojure.tools.decompiler.RetrieveClasses))
 
 ;; Implementaiton is limited to the set of bytecode produced by Clojure compiler as of version 1.9.0
 
 (set! *warn-on-reflection* true)
 
-(defn parse-classfile ^JavaClass [filename]
-  (-> filename
-      (ClassParser.)
-      (.parse)))
+(defn parse-class ^JavaClass [^String classfile-or-classname]
+  (let [cp (if (.endsWith classfile-or-classname ".class")
+             (ClassParser. classfile-or-classname)
+             (ClassParser. (ByteArrayInputStream. (get (RetrieveClasses/getClasses) classfile-or-classname)) ""))]
+    (.parse cp)))
 
 (defn parse-flags [^AccessFlags flags]
   (cond-> #{}
@@ -189,8 +192,8 @@
        (remove #(.isAbstract ^Method %))
        (mapv (partial parse-method klass))))
 
-(defn analyze-classfile [filename]
-  (let [klass (parse-classfile filename)]
+(defn analyze-class [classfile-or-classname]
+  (let [klass (parse-class classfile-or-classname)]
     {:class/name (.getClassName klass)
      :class/filename (.getSourceFileName klass)
 

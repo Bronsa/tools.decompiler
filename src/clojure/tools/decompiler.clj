@@ -21,10 +21,9 @@
       (io/file)
       (.getAbsolutePath)))
 
-(defn classfile->source [filename bc-for]
-  (-> filename
-      (absolute-filename)
-      (bc/analyze-classfile)
+(defn class->source [classfile-or-classname bc-for]
+  (-> classfile-or-classname
+      (bc/analyze-class)
       (ast/bc->ast {:bc-for bc-for})
       (sa/ast->sugared-ast)
       (src/ast->clj)
@@ -47,9 +46,9 @@
             (s/replace "." "/")
             classname->path
             absolute-filename
-            bc/analyze-classfile)))
+            bc/analyze-class)))
 
-(defn decompile [{:keys [input-path output-path classes]}]
+(defn decompile-classfiles [{:keys [input-path output-path classes]}]
   (let [files (filter classfile? (map str (file-seq (io/file input-path))))
         classname->path (into {} (map (fn [^String classfile]
                                         [(cname classfile input-path) classfile])
@@ -66,10 +65,22 @@
               ns-name (subs cname 0 (- (count cname) (count "__init")))
               ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]
           (send-off *log* (fn [& _] (println (str "Decompiling " init (when output-path (str " to " ns-file))))))
-          (let [source (classfile->source init (bc-for classname->path))]
+          (let [source (class->source (absolute-filename init) (bc-for classname->path))]
             (if output-path
               (do (io/make-parents ns-file)
                   (spit ns-file source))
               (println source)))))
       inits))
+    nil))
+
+(defn decompile-classes [{:keys [classes]}]
+  (let [*log* (agent nil)]
+    (dorun
+     (pmap
+      (fn [class]
+        (send-off *log* (fn [& _] (println "Decompiling" class)))
+        (let [source (class->source class (fn [classname]
+                                            (bc/analyze-class (s/replace classname "." "/"))))]
+          (println source)))
+      classes))
     nil))
