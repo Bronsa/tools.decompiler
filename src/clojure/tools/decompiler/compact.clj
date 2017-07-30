@@ -686,7 +686,7 @@
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
 
-;; WIP for, destructuring, assert, ns, condp, with-redefs, definterface
+;; WIP for, assert, ns, condp, with-redefs, definterface
 
 (defn macrocompact [source]
   (w/postwalk
