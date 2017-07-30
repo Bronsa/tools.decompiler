@@ -296,7 +296,7 @@
     [(`let ?bindings (do ?&body)) :-> `(let ~?bindings ~@?&body)]
     [(`when-let ?bindings (do ?&body)) :-> `(when-let ~?bindings ~@?&body)]
     [(`when-some ?bindings (do ?&body)) :-> `(when-some ~?bindings ~@?&body)]
-    [(`fn ?name (?bindings (do ?&body))) :-> `(fn ?name (~?bindings ~@?&body))]
+    [(`fn ?name (?bindings (do ?&body))) :-> `(fn ~?name (~?bindings ~@?&body))]
     [(if ?test nil ?&body) :-> `(when-not ~?test ~@?&body)]
     [(`when-not ?bindings (do ?&body)) :-> `(when-not ~?bindings ~@?&body)]
 
