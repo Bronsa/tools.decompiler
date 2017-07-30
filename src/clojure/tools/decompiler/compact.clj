@@ -31,10 +31,6 @@
             [bind binds] (loop [[[b v :as bind] & binds] binds ret []]
 
                            (cond
-
-                             (not bind)
-                             [[ret init] []]
-
                              (and (symbol? b)
                                   (.startsWith (name b) "first__"))
                              (recur binds (conj ret b))
@@ -46,8 +42,11 @@
                              (= v placeholder)
                              [[(conj ret '& b) init] binds]
 
+                             (= b placeholder)
+                             (recur binds ret)
+
                              :else
-                             (recur binds ret)))]
+                             [[ret init] []]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
@@ -68,17 +67,48 @@
 
                            (cond
 
-                             (not bind)
-                             [[ret init] []]
-
                              (= v placeholder)
                              (if (symbol? b)
                                [[(conj ret :as b) init] binds]
                                (recur binds b))
 
                              (and (seq? v)
-                                  (= `nth (first v)))
+                                  (= `nth (first v))
+                                  (= placeholder (second v)))
                              (recur binds (conj ret b))
+
+                             :else
+                             [[ret init] binds]))]
+        (into (into ret bind) (mapcat identity binds)))
+
+      :else
+      (recur binds (conj ret b v)))))
+
+(defn compact-associative-destructuring [binds]
+  (loop [[[b v :as bind] & binds] (partition 2 binds)
+         ret []]
+    (cond
+      (not bind)
+      ret
+
+      (and (symbol? b)
+           (.startsWith (name b) "map__"))
+      (let [init v
+            placeholder b
+            [bind binds] (loop [[[b v :as bind] & binds] (rest binds) ret {}]
+
+                           (cond
+
+                             (= v placeholder)
+                             (recur binds (assoc ret :as b))
+
+                             (and (seq? v)
+                                  (= `get (first v))
+                                  (= placeholder (second v)))
+                             (let [k (nth v 2)
+                                   ?or (and (= 4 (count v)) (nth v 3))]
+                               (recur binds (cond-> (assoc ret b k)
+                                              ?or (assoc-in [:or b] ?or))))
 
                              :else
                              [[ret init] binds]))]
@@ -633,6 +663,11 @@
      {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "vec__")) (take-nth 2 binds)))}
      :->
      `(let [~@(compact-vec-destructuring ?&binds)] ~@?&body)]
+
+    [(`let [?&binds] ?&body)
+     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "map__")) (take-nth 2 binds)))}
+     :->
+     `(let [~@(compact-associative-destructuring ?&binds)] ~@?&body)]
 
     [(.set (var ?v) ?val) ?-> `(set! ~?v ~?val)]
 
