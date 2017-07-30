@@ -550,7 +550,7 @@
 
     [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
 
-    [(.set (var ?v) ?val) ?-> `(set! (var ~?v) ~?val)]
+    [(.set (var ?v) ?val) ?-> `(set! ~?v ~?val)]
 
     [(.bindRoot (var ?var) (`fn ?name ?&body)) :->  `(defn ~(-> ?var name symbol) ~@?&body)]
     [(.bindRoot (var ?var) ?val) :->  `(def  ~(-> ?var name symbol) ~?val)]))
