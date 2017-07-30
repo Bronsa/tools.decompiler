@@ -15,6 +15,109 @@
            clojure.core.match.protocols.IPatternCompile
            clojure.lang.ExceptionInfo))
 
+;; WIP recur
+(defn compact-sequential-destructuring [binds]
+  (loop [[[b v :as bind] & binds] (partition 2 binds)
+         ret []]
+    (cond
+      (not bind)
+      ret
+
+      (and (symbol? b)
+           (.startsWith (name b) "seq__")
+           (seq? v)
+           (= `seq (first v)))
+      (let [init (second v)
+            placeholder b
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] binds ret []]
+
+                           (cond
+                             (and (symbol? b)
+                                  (.startsWith (name b) "first__"))
+                             (recur binds (conj ret b))
+
+                             (and (symbol? v)
+                                  (.startsWith (name v) "first__"))
+                             (recur binds (replace {v b} ret))
+
+                             (= v placeholder)
+                             [[(conj ret '& b) init] binds]
+
+                             (= b placeholder)
+                             (recur binds ret)
+
+                             :else
+                             [[ret init] curr]))]
+        (into (into ret bind) (mapcat identity binds)))
+
+      :else
+      (recur binds (conj ret b v)))))
+
+(defn compact-vec-destructuring [binds]
+  (loop [[[b v :as bind] & binds] (partition 2 binds)
+         ret []]
+    (cond
+      (not bind)
+      ret
+
+      (and (symbol? b)
+           (.startsWith (name b) "vec__"))
+      (let [init v
+            placeholder b
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] binds ret []]
+
+                           (cond
+
+                             (= v placeholder)
+                             (if (symbol? b)
+                               [[(conj ret :as b) init] binds]
+                               (recur binds b))
+
+                             (and (seq? v)
+                                  (= `nth (first v))
+                                  (= placeholder (second v)))
+                             (recur binds (conj ret b))
+
+                             :else
+                             [[ret init] curr]))]
+        (into (into ret bind) (mapcat identity binds)))
+
+      :else
+      (recur binds (conj ret b v)))))
+
+(defn compact-associative-destructuring [binds]
+  (loop [[[b v :as bind] & binds] (partition 2 binds)
+         ret []]
+    (cond
+      (not bind)
+      ret
+
+      (and (symbol? b)
+           (.startsWith (name b) "map__"))
+      (let [init v
+            placeholder b
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] (rest binds) ret {}]
+
+                           (cond
+
+                             (= v placeholder)
+                             (recur binds (assoc ret :as b))
+
+                             (and (seq? v)
+                                  (= `get (first v))
+                                  (= placeholder (second v)))
+                             (let [k (nth v 2)
+                                   ?or (and (= 4 (count v)) (nth v 3))]
+                               (recur binds (cond-> (assoc ret b k)
+                                              ?or (assoc-in [:or b] ?or))))
+
+                             :else
+                             [[ret init] curr]))]
+        (into (into ret bind) (mapcat identity binds)))
+
+      :else
+      (recur binds (conj ret b v)))))
+
 (defn remove-defrecord-methods [methods]
   (for [[name :as method] methods
         :when (not ('#{hasheq hashCode equals meta withMeta valAt getLookupThunk
@@ -193,7 +296,7 @@
     [(`let ?bindings (do ?&body)) :-> `(let ~?bindings ~@?&body)]
     [(`when-let ?bindings (do ?&body)) :-> `(when-let ~?bindings ~@?&body)]
     [(`when-some ?bindings (do ?&body)) :-> `(when-some ~?bindings ~@?&body)]
-    [(`fn ?name (?bindings (do ?&body))) :-> `(fn ?name (~?bindings ~@?&body))]
+    [(`fn ?name (?bindings (do ?&body))) :-> `(fn ~?name (~?bindings ~@?&body))]
     [(if ?test nil ?&body) :-> `(when-not ~?test ~@?&body)]
     [(`when-not ?bindings (do ?&body)) :-> `(when-not ~?bindings ~@?&body)]
 
@@ -322,7 +425,7 @@
     [(`let [?x ?y]
       (`when ?x
        (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(and (symbol? %) (-> % name (.startsWith "temp__")))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-let [~?z ~?y] ~body))]
@@ -331,7 +434,7 @@
       (if ?x
         (`let [?z ?x ?&binds] ?&body)
         ?else))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(and (symbol? %) (-> % name (.startsWith "temp__")))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(if-let [~?z ~?y] ~body ~?else))]
@@ -340,7 +443,7 @@
       (if (`nil? ?x)
         nil
         (`let [?z ?x ?&binds] ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(and (symbol? %) (-> % name (.startsWith "temp__")))}
      :->
      (let [body (if (empty? ?&binds) `(do ~@?&body) `(let [~@?&binds] ~@?&body))]
        `(when-some [~?z ~?y] ~body))]
@@ -350,18 +453,18 @@
         ?else
         (`let [?z ?x]
          ?&body)))
-     {?x #(-> % name (.startsWith "temp__"))}
+     {?x #(and (symbol? %) (-> % name (.startsWith "temp__")))}
      :->
      `(if-some [~?z ~?y] (do ~@?&body) ~?else)]
 
     [(`let [?t ?x] (if ?t ?y ?t))
-     {?t #(-> % name (.startsWith "and__"))}
+     {?t #(and (symbol? %) (-> % name (.startsWith "and__")))}
      :->
      `(and ~?x ~?y)]
     [(`and ?x (`and ?y ?&z)) :->  `(and ~?x ~?y ~@?&z)]
 
     [(`let [?t ?x] (if ?t ?t ?y))
-     {?t #(-> % name (.startsWith "or__"))}
+     {?t #(and (symbol? %) (-> % name (.startsWith "or__")))}
      :->
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
@@ -389,7 +492,7 @@
 
     [(`when-let [?bind (`seq ?xs)]
       (`let [?x ?bind]
-       ?&body)) {?bind #(-> % name (.startsWith "xs__"))}
+       ?&body)) {?bind #(and (symbol? %) (-> % name (.startsWith "xs__")))}
      :->
      `(when-first [~?x ~?xs]
         ~@?&body)]
@@ -508,7 +611,7 @@
     [(`let [?g ?expr]
       (`case ?g
        ?&body))
-     {?g #(-> % name (.startsWith "G__"))}
+     {?g #(and (symbol? %) (-> % name (.startsWith "G__")))}
      :-> `(case ~?expr ~@?&body)]
 
     [(`let [?a ?arr ?len (`alength ?a)]
@@ -517,7 +620,7 @@
      :-> `(areduce ~?arr ~?idx ~?ret ~?init ~?expr)]
 
     [(`let [?x ?obj] (?f ?x ?&args) (?g ?x ?&args2) ?&exprs)
-     {?x #(-> % name (.startsWith "G__"))
+     {?x #(and (symbol? %) (-> % name (.startsWith "G__")))
       ?&exprs (fn [exprs] (every? #(and (seq? %) (= (last exprs) (second %))) (butlast exprs)))}
      :-> `(doto ~?obj (~?f ~@?&args) (~?g ~@?&args2) ~@(map #(list* (first %) (drop 2 %)) (butlast ?&exprs)))]
 
@@ -551,6 +654,32 @@
             ~@(remove #{'clojure.lang.IType} ?interfaces) ~@?&impls)]
 
     [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
+
+    [(`let [?&binds] ?&body)
+     {?&binds (fn [binds] (some #(and (symbol? (first %))
+                                      (.startsWith (name (first %)) "map__")
+                                      (compact (second %)
+                                        [(if (`seq? ?m)
+                                           (clojure.lang.PersistentHashMap/create (`seq ?m))
+                                           ?m) :-> false]
+                                        :else true))
+                                (partition 2 binds)))}
+     :->
+     `(let [~@(compact-associative-destructuring ?&binds)] ~@?&body)]
+
+    [(`let [?&binds] ?&body)
+     {?&binds (fn [binds] (some #(and (symbol? (first %))
+                                      (.startsWith (name (first %)) "seq__")
+                                      (seq? (second %))
+                                      (= `seq (first (second %))))
+                                (partition 2 binds)))}
+     :->
+     `(let [~@(compact-sequential-destructuring ?&binds)] ~@?&body)]
+
+    [(`let [?&binds] ?&body)
+     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "vec__")) (take-nth 2 binds)))}
+     :->
+     `(let [~@(compact-vec-destructuring ?&binds)] ~@?&body)]
 
     [(.set (var ?v) ?val) ?-> `(set! ~?v ~?val)]
 
