@@ -656,12 +656,23 @@
     [(do (deftype ?&body) ?&_) :-> `(deftype ~@?&body)]
 
     [(`let [?&binds] ?&body)
-     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "map__")) (take-nth 2 binds)))}
+     {?&binds (fn [binds] (some #(and (symbol? (first %))
+                                      (.startsWith (name (first %)) "map__")
+                                      (compact (second %)
+                                        [(if (`seq? ?m)
+                                           (clojure.lang.PersistentHashMap/create (`seq ?m))
+                                           ?m) :-> false]
+                                        :else true))
+                                (partition 2 binds)))}
      :->
      `(let [~@(compact-associative-destructuring ?&binds)] ~@?&body)]
 
     [(`let [?&binds] ?&body)
-     {?&binds (fn [binds] (some #(and (symbol? %) (.startsWith (name %) "seq__")) (take-nth 2 binds)))}
+     {?&binds (fn [binds] (some #(and (symbol? (first %))
+                                      (.startsWith (name (first %)) "seq__")
+                                      (seq? (second %))
+                                      (= `seq (first (second %))))
+                                (partition 2 binds)))}
      :->
      `(let [~@(compact-sequential-destructuring ?&binds)] ~@?&body)]
 
