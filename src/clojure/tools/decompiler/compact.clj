@@ -28,7 +28,7 @@
            (= `seq (first v)))
       (let [init (second v)
             placeholder b
-            [bind binds] (loop [[[b v :as bind] & binds] binds ret []]
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] binds ret []]
 
                            (cond
                              (and (symbol? b)
@@ -46,7 +46,7 @@
                              (recur binds ret)
 
                              :else
-                             [[ret init] []]))]
+                             [[ret init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
@@ -63,7 +63,7 @@
            (.startsWith (name b) "vec__"))
       (let [init v
             placeholder b
-            [bind binds] (loop [[[b v :as bind] & binds] binds ret []]
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] binds ret []]
 
                            (cond
 
@@ -78,7 +78,7 @@
                              (recur binds (conj ret b))
 
                              :else
-                             [[ret init] binds]))]
+                             [[ret init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
@@ -95,7 +95,7 @@
            (.startsWith (name b) "map__"))
       (let [init v
             placeholder b
-            [bind binds] (loop [[[b v :as bind] & binds] (rest binds) ret {}]
+            [bind binds] (loop [[[b v :as bind] & binds :as curr] (rest binds) ret {}]
 
                            (cond
 
@@ -111,7 +111,7 @@
                                               ?or (assoc-in [:or b] ?or))))
 
                              :else
-                             [[ret init] binds]))]
+                             [[ret init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
