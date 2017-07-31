@@ -15,7 +15,6 @@
            clojure.core.match.protocols.IPatternCompile
            clojure.lang.ExceptionInfo))
 
-;; WIP recur
 (defn compact-sequential-destructuring [binds]
   (loop [[[b v :as bind] & binds] (partition 2 binds)
          ret []]
@@ -47,7 +46,7 @@
                              (recur binds ret)
 
                              :else
-                             [[ret init] curr]))]
+                             [[(conj ret '& placeholder) init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
