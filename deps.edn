@@ -1,5 +1,4 @@
 {:deps {org.clojure/clojure {:type :mvn :version "1.9.0-alpha17"}
         org.clojure/core.match {:type :mvn :version "0.3.0-alpha5"}
         org.apache.bcel/bcel {:type :mvn :version "6.0"}
-        fipp {:type :mvn :version "0.6.9"}
-        tools.decompiler {:type :mvn :version "0.1.0-SNAPSHOT"}}}
+        fipp {:type :mvn :version "0.6.9"}}}
