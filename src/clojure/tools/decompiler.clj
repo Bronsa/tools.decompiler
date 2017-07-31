@@ -79,8 +79,9 @@
      (pmap
       (fn [class]
         (send-off *log* (fn [& _] (println "Decompiling" class)))
-        (let [source (class->source class (fn [classname]
-                                            (bc/analyze-class (s/replace classname "." "/"))))]
+        (let [source (class->source class (fn [^String classname]
+                                            (when-not (.startsWith classname "clojure.lang.")
+                                              (bc/analyze-class (s/replace classname "." "/")))))]
           (println source)))
       classes))
     nil))
