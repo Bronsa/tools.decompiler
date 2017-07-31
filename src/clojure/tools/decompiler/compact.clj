@@ -582,7 +582,7 @@
                                                 (rest bind)))
                                    ~@?&body)]
 
-    [(`future-call (fn ([] ?&body))) :-> `(future ~@?&body)]
+    [(`future-call (fn ?_ [] ?&body)) :-> `(future ~@?&body)]
 
     [(reify* ?interfaces ?&methods) :-> `(reify ~@?interfaces ~@?&methods)]
     [(.withMeta (`reify ?&body) ?_) :-> `(reify ~@?&body)]
