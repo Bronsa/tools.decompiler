@@ -92,8 +92,10 @@
 (defn simplify-map-destructuring [m]
   (let [{ks true opts false} (group-by (comp keyword? val) m)
         {ks true oths false} (group-by #(and (not (namespace (val %)))
-                                             (= (name (val %))
-                                                (name (key %)))) ks)]
+                                             (and (keyword? (val %))
+                                                  (symbol? (key %))
+                                                  (= (name (val %))
+                                                     (name (key %))))) ks)]
     (-> {}
         (cond-> (seq ks)
           (conj [:keys (mapv key ks)]))
