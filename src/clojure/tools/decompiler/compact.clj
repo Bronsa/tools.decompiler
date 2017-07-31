@@ -77,6 +77,11 @@
                                   (= placeholder (second v)))
                              (recur binds (conj ret b))
 
+                             (and (seq? v)
+                                  (= `nthnext (first v))
+                                  (= placeholder (second v)))
+                             [[(conj ret '& b) init] binds]
+
                              :else
                              [[ret init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
