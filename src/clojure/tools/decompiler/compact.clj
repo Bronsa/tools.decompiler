@@ -84,6 +84,17 @@
       :else
       (recur binds (conj ret b v)))))
 
+(defn simplify-map-destructuring [m]
+  (let [{ks true opts false} (group-by (comp keyword? val) m)
+        {ks true oths false} (group-by #(and (not (namespace (val %)))
+                                             (= (name (val %))
+                                                (name (key %)))) ks)]
+    (-> {}
+        (cond-> (seq ks)
+          (conj [:keys (mapv key ks)]))
+        (into opts)
+        (into oths))))
+
 (defn compact-associative-destructuring [binds]
   (loop [[[b v :as bind] & binds] (partition 2 binds)
          ret []]
@@ -111,7 +122,7 @@
                                               ?or (assoc-in [:or b] ?or))))
 
                              :else
-                             [[ret init] curr]))]
+                             [[(simplify-map-destructuring ret) init] curr]))]
         (into (into ret bind) (mapcat identity binds)))
 
       :else
