@@ -69,7 +69,7 @@
             (if output-path
               (do (io/make-parents ns-file)
                   (spit ns-file source))
-              (println source)))))
+              (send-off *log* (fn [& _] (println source)))))))
       inits))
     nil))
 
