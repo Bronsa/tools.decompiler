@@ -28,8 +28,6 @@
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)
-      (->> (keep identity)
-           (remove #(and (seq? %) (= 'var (first %)))))
       (pp/pprint)))
 
 (defn cname [c input-path]

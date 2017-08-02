@@ -63,4 +63,6 @@
 (defn pprint [source]
   (-> source
       (elide-ns)
+      (->> (keep identity)
+           (remove #(and (seq? %) (= 'var (first %)))))
       (->pprint-str)))
