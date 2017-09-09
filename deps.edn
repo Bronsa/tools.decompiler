@@ -1,4 +1,5 @@
-{:deps {org.clojure/clojure {:type :mvn :version "1.9.0-alpha17"}
+{:deps {org.clojure/clojure {:type :mvn :version "1.9.0-alpha20"}
         org.clojure/core.match {:type :mvn :version "0.3.0-alpha5"}
         org.apache.bcel/bcel {:type :mvn :version "6.0"}
-        fipp {:type :mvn :version "0.6.9"}}}
+        fipp {:type :mvn :version "0.6.9"}
+        local/src {:type :file :path "src"}}}
