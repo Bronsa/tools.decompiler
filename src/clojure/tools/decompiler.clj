@@ -53,34 +53,24 @@
                                       files))
         inits (if classes
                 (mapv classname->path classes)
-                (filter (fn [^String i] (.endsWith i "__init.class")) files))
-        *log* (agent nil)]
+                (filter (fn [^String i] (.endsWith i "__init.class")) files))]
 
-    (dorun
-     (pmap
-      (fn [init]
-        (let [cname (cname init input-path)
-              ns-name (subs cname 0 (- (count cname) (count "__init")))
-              ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]
-          (send-off *log* (fn [& _] (println (str "Decompiling " init (when output-path (str " to " ns-file))))))
-          (let [source (class->source (absolute-filename init) (bc-for classname->path))]
-            (if output-path
-              (do (io/make-parents ns-file)
-                  (spit ns-file source))
-              (send-off *log* (fn [& _] (println source)))))))
-      inits))
-    nil))
+    (doseq [init inits]
+      (let [cname (cname init input-path)
+            ns-name (subs cname 0 (- (count cname) (count "__init")))
+            ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]
+        (println (str "Decompiling " init (when output-path (str " to " ns-file))))
+        (let [source (class->source (absolute-filename init) (bc-for classname->path))]
+          (if output-path
+            (do (io/make-parents ns-file)
+                (spit ns-file source))
+            (println source)))))))
 
 (defn decompile-classes [{:keys [classes]}]
-  (let [*log* (agent nil)]
-    (dorun
-     (pmap
-      (fn [class]
-        (send-off *log* (fn [& _] (println "Decompiling" class)))
-        (let [source (class->source (s/replace class "." "/")
-                                    (fn [^String classname]
-                                      (when-not (.startsWith classname "clojure.lang.")
-                                        (bc/analyze-class (s/replace classname "." "/")))))]
-          (println source)))
-      classes))
-    nil))
+  (doseq [class classes]
+    (println "Decompiling" class)
+    (let [source (class->source (s/replace class "." "/")
+                                (fn [^String classname]
+                                  (when-not (.startsWith classname "clojure.lang.")
+                                    (bc/analyze-class (s/replace classname "." "/")))))]
+      (println source))))
