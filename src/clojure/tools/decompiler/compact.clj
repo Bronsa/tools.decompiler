@@ -410,17 +410,21 @@
      `(with-open [~?a ~?b]
         ~@(butlast ?&body))]
 
-    ;; [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
-    ;;   (if (`< ?i ?count)
-    ;;     (`let [?a (.nth ?chunk ?i)
-    ;;            ?&binds]
-    ;;      ?&body)
-    ;;     (`when-let [?seq (`seq ?seq)]
-    ;;      (if (`chunked-seq? ?seq)
-    ;;        (`let [?c (`chunk-first ?seq)]
-    ;;         (recur ?&_))
-    ;;        (`let [?x (`first ?seq) ?&_] ?&_)))))
-    ;;  :-> `(doseq [~?a ~?b ~@(when (seq ?&binds) [:let (vec ?&binds)])] ~@(butlast ?&body))]
+    ;; no :let/:when/:while support
+    [(`loop [?seq (`seq ?b) ?chunk nil ?count 0 ?i 0]
+      (if (`< ?i ?count)
+        (`let [?a (.nth ?chunk ?i)
+               ?&binds]
+         ?&body)
+        (`when-let [?seq (`seq ?seq)]
+         (if (`chunked-seq? ?seq)
+           (`let [?c (`chunk-first ?seq)]
+            (recur ?&_))
+           (`let [?x (`first ?seq) ?&_] ?&_)))))
+     {?&body #(and (seq? (last %))
+                   (= 'recur (-> % last first)))
+      ?&binds #(empty? %)}
+     :-> `(doseq [~?a ~?b] ~@(butlast ?&body))]
 
     [(`let [?c ?t]
       (`loop [?n 0]
