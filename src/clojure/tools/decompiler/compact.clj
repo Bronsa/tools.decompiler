@@ -512,9 +512,8 @@
      `(when-first [~?x ~?xs]
         ~@?&body)]
 
-    [(if (`nil? ?g)
-       nil
-       (?f ?g ?&args))
+    [(`when-not (`nil? ?g)
+      (?f ?g ?&args))
      {?g #(and (symbol? %) (-> % name (.startsWith "G__")))}
      :-> `(some-> ~?g (~?f ~@?&args))]
 
