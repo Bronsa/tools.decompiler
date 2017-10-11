@@ -493,9 +493,7 @@
 
     [(.setMeta ?ref ?meta) :-> `(reset-meta! ~?ref ~?meta)]
     [(`reset-meta! ?var ?meta) {?meta #(and (map? %)
-                                            (#{#{:column} #{:column :arglists} #{:line :column :file}
-                                               #{:line :column :file :doc}
-                                               #{:line :column :file :doc :arglists}} (set (keys %))))} :-> nil]
+                                            (empty? (dissoc % :file :line :column :arglists :doc)))} :-> nil]
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{#{:line} #{:column} #{:line :column}} (set (keys %))))} :-> `(list ~@?&body)]
     [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
