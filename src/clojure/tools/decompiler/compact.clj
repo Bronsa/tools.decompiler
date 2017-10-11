@@ -495,6 +495,8 @@
     [(`reset-meta! ?var ?meta) {?meta #(and (map? %)
                                             (empty? (dissoc % :file :line :column :arglists :doc)))} :-> nil]
 
+    [(`reset-meta! ?var ?meta) {?meta #(and (map? %) (:declared %))} :-> `(declare ~(-> ?var second))]
+
     [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{#{:line} #{:column} #{:line :column}} (set (keys %))))} :-> `(list ~@?&body)]
     [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
 
