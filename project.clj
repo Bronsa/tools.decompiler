@@ -1,4 +1,4 @@
-(defproject tools.decompiler "0.1.0-SNAPSHOT"
+(defproject bronsa/tools.decompiler "0.1.0-alpha1"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
