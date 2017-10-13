@@ -1,3 +1,10 @@
+# Dependencies:
+
+Leiningen:
+```clojure
+[bronsa/tools.decompiler "0.1.0-alpha1"]
+```
+
 # Usage:
 
 Use `decompile-classfiles `to decompile AOT compiled classes:
