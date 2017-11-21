@@ -1,3 +1,5 @@
+I gave a talk on tools.decompiler at Clojure/Conj in October 2017. Video [here](https://www.youtube.com/watch?v=2SGFeegEt9E)
+
 # Dependencies:
 
 Leiningen:
