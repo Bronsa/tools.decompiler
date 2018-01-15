@@ -2,4 +2,4 @@
         org.clojure/core.match {:mvn/version "0.3.0-alpha5"}
         org.apache.bcel/bcel {:mvn/version "6.1"}
         fipp {:mvn/version "0.6.12"}}
- :paths ["src" "target"]}
+ :paths ["src" "target/classes"]}

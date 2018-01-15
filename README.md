@@ -9,6 +9,8 @@ Leiningen:
 
 # Usage:
 
+Use `lein javac` to AOT compile `clojure.tools.decompiler.RetrieveClasses` then you can use `lein repl` or `clj` to launch a repl
+
 Use `decompile-classfiles `to decompile AOT compiled classes:
 
 ```clojure
