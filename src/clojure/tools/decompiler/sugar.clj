@@ -283,7 +283,7 @@
            (= method "readString")
            (= 1 (count args))
            (string? (-> args first :val))
-           ((some-fn integer? bigdec?) (try (e/read-string (-> args first :val)) (catch Exception _))))
+           ((some-fn integer? decimal?) (try (e/read-string (-> args first :val)) (catch Exception _))))
 
       {:op :const
        :val (e/read-string (-> args first :val))}
