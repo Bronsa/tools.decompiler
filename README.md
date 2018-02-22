@@ -17,7 +17,7 @@ Use `decompile-classfiles `to decompile AOT compiled classes:
 user=> (require '[clojure.tools.decompiler :as d])
 nil
 user=> (d/decompile-classfiles {:input-path "path/to/root/classes/directory" :output-path "path/to/src"})
-;; with no :output-path, decompile to stdout>
+;; with no :output-path, decompile to stdout
 [...]
 ```
 
