@@ -529,7 +529,7 @@
         (cond-> (not statement?)
           (assoc :recur? recur?)))))
 
-(defn process-letfn [{:keys [local-variable-table pc bc-for] :as ctx} target-index]
+(defn process-letfn [{:keys [local-variable-table pc bc-for lenient?] :as ctx} target-index]
   (let [{:keys [index start-label end-label]} (->> local-variable-table
                                                    (filter (comp (partial < pc) :start-label))
                                                    (sort-by :index)
@@ -555,6 +555,7 @@
             init-local-variables (map (fn [lv fn]
                                         (let [init (bc->ast (bc-for fn)
                                                             {:bc-for bc-for
+                                                             :lenient? lenient?
                                                              :fn-name (:name lv)})]
                                           (assoc lv :init init)))
                                       local-variables letfn-fns)
@@ -790,7 +791,7 @@
 (defmethod process-insn :new [ctx _]
   ctx)
 
-(defmethod process-insn :invokespecial [{:keys [stack bc-for] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn :invokespecial [{:keys [stack bc-for lenient?] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-arg-types]} pool-element
         argc (count target-arg-types)
         args (peek-n stack argc)]
@@ -800,7 +801,7 @@
                               (if (or (#{"clojure.lang.AFunction" "clojure.lang.RestFn" } (:class/super bc))
                                       (and (some #{"clojure.lang.IObj"} (:class/interfaces bc))
                                            (.contains ^String target-class "$reify__")))
-                                (bc->ast bc {:bc-for bc-for})
+                                (bc->ast bc {:bc-for bc-for :lenient? lenient?})
                                 {:op :new
                                  :class target-class
                                  :args args}))))))
@@ -812,7 +813,7 @@
         (update :statements conj {:op :throw
                                   :ex ex}))))
 
-(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for ^String class-name] :as ctx} {:insn/keys [pool-element]}]
+(defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for ^String class-name lenient?] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
         argc (count (conj target-arg-types target-class))
         [target & args] (peek-n stack argc)
@@ -827,7 +828,7 @@
                                                        (subs 0 i)))))
                                             (bc-for cname))]
                            (when (some #{"clojure.lang.IType" "clojure.lang.IRecord"} (:class/interfaces bc))
-                             (bc->ast bc {:bc-for bc-for})))))]
+                             (bc->ast bc {:bc-for bc-for :lenient? lenient?})))))]
     (-> ctx
         (update :stack pop-n argc)
         (update (if (= "void" target-ret-type) :statements :stack)
@@ -1212,22 +1213,27 @@
 
 (defn bc->ast [{:class/keys [interfaces super ^String name] :as bc} ctx]
   (let [ctx (merge ctx initial-ctx)]
-    (cond
-      (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
-      (decompile-fn bc ctx)
+    (try
+      (cond
+        (#{"clojure.lang.AFunction" "clojure.lang.RestFn"} super)
+        (decompile-fn bc ctx)
 
-      (.endsWith name "__init")
-      (decompile-ns bc ctx)
+        (.endsWith name "__init")
+        (decompile-ns bc ctx)
 
-      (some #{"clojure.lang.IType" "clojure.lang.IRecord"} interfaces)
-      (decompile-deftype bc ctx)
+        (some #{"clojure.lang.IType" "clojure.lang.IRecord"} interfaces)
+        (decompile-deftype bc ctx)
 
-      (and (some #{"clojure.lang.IObj"} interfaces)
-           (.contains name "$reify__"))
-      (decompile-reify bc ctx)
+        (and (some #{"clojure.lang.IObj"} interfaces)
+             (.contains name "$reify__"))
+        (decompile-reify bc ctx)
 
-      :else
-      (throw (Exception. ":(")))))
+        :else
+        (throw (Exception. ":(")))
+      (catch Exception e
+        (if (:lenient? ctx)
+          {:op :const :val (str "BROKEN DECOMP " name)}
+          (throw e))))))
 
 ;;; genclass
 ;; WIP int -> booleans

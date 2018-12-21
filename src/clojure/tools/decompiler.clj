@@ -21,10 +21,10 @@
       (io/file)
       (.getAbsolutePath)))
 
-(defn class->source [classfile-or-classname bc-for]
+(defn class->source [classfile-or-classname bc-for lenient?]
   (-> classfile-or-classname
       (bc/analyze-class)
-      (ast/bc->ast {:bc-for bc-for})
+      (ast/bc->ast {:bc-for bc-for :lenient? lenient?})
       (sa/ast->sugared-ast)
       (src/ast->clj)
       (cmp/macrocompact)
@@ -46,7 +46,7 @@
             absolute-filename
             bc/analyze-class)))
 
-(defn decompile-classfiles [{:keys [input-path output-path ?only-classes]}]
+(defn decompile-classfiles [{:keys [input-path output-path ?only-classes lenient?]}]
   (let [files (filter classfile? (map str (file-seq (io/file input-path))))
         classname->path (into {} (map (fn [^String classfile]
                                         [(cname classfile input-path) classfile])
@@ -60,7 +60,7 @@
             ns-name (subs cname 0 (- (count cname) (count "__init")))
             ns-file (str output-path "/" (s/replace ns-name "." "/") ".clj")]
         (println (str "Decompiling " init (when output-path (str " to " ns-file))))
-        (let [source (class->source (absolute-filename init) (bc-for classname->path))]
+        (let [source (class->source (absolute-filename init) (bc-for classname->path) lenient?)]
           (if output-path
             (do (io/make-parents ns-file)
                 (spit ns-file source))
@@ -74,3 +74,10 @@
                                   (when-not (.startsWith classname "clojure.lang.")
                                     (bc/analyze-class (s/replace classname "." "/")))))]
       (println source))))
+
+(comment
+  (decompile-classfiles
+   {:input-path "classes/"
+    :output-path "src/"
+    :?only-classes ["my/ns__init"]
+    :lenient? true}))
