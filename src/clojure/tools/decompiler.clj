@@ -66,13 +66,14 @@
                 (spit ns-file source))
             (println source)))))))
 
-(defn decompile-classes [{:keys [classes]}]
+(defn decompile-classes [{:keys [classes lenient?] :or {lenient? true}}]
   (doseq [class classes]
     (println "Decompiling" class)
     (let [source (class->source (s/replace class "." "/")
                                 (fn [^String classname]
                                   (when-not (.startsWith classname "clojure.lang.")
-                                    (bc/analyze-class (s/replace classname "." "/")))))]
+                                    (bc/analyze-class (s/replace classname "." "/"))))
+                                lenient?)]
       (println source))))
 
 (comment
