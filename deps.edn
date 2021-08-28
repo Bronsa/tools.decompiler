@@ -1,5 +1,10 @@
-{:deps {org.clojure/clojure {:mvn/version "1.10.0"}
-        org.clojure/core.match {:mvn/version "0.3.0-alpha5"}
+{:deps {org.clojure/clojure {:mvn/version "1.10.3"}
+        org.clojure/core.match {:mvn/version "1.0.0"}
         org.apache.bcel/bcel {:mvn/version "6.1"}
-        fipp {:mvn/version "0.6.12"}}
- :paths ["src" "target/classes"]}
+        fipp/fipp {:mvn/version "0.6.24"}}
+ :paths ["src" "target/classes"]
+ :aliases {:build {:deps {io.github.clojure/tools.build {:git/tag "v0.1.9" :git/sha "6736c83"}}
+                   :ns-default build}}
+ :deps/prep-lib {:alias :build
+                 :fn compile
+		 :ensure "target/classes"}}
