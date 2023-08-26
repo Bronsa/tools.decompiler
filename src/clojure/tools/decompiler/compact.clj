@@ -498,6 +498,20 @@
      `(or ~?x ~?y)]
     [(`or ?x (`or ?y ?&z)) :-> `(or ~?x ~?y ~@?&z)]
 
+    ;; specialise for two for now
+    [(`defn ?n ([?x ?&xs] (`let [?x_d ?x ?&binds] ?&body)))
+     {?x #(and (symbol? %) (-> % name (.startsWith "p__")))}
+     :->
+     `(defn ~?n
+        ([~?x_d ~@?&xs]
+         (let [~@?&binds] ~@?&body)))]
+    [(`defn ?n ([?a ?x ?&xs] (`let [?x_d ?x ?&binds] ?&body)))
+     {?x #(and (symbol? %) (-> % name (.startsWith "p__")))}
+     :->
+     `(defn ~?n
+        ([~?a ~?x_d ~@?&xs]
+         (let [~@?&binds] ~@?&body)))]
+
     ;; WIP body should not use ?n
     [((`fn ?n ([] ?&body))) :-> `(do ~@?&body)]
 
