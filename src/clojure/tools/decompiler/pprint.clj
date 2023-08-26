@@ -35,6 +35,11 @@
                           ex (if (vector? ex) ex (rest ex))]
                       (swap! !aliases assoc "clojure.core" (->> ex (map (comp str second)) (into #{})))))
 
+                  (when (= 'clojure.core/import (first x))
+                    (doseq [[_ k] (rest x)]
+                      (swap! !aliases assoc (str k)
+                             (clojure.string/replace (str k) #".*\.([^.]+)" "$1"))))
+
                   (when (= 'clojure.core/require (first x))
                     (doseq [req (rest x)
                             :when (vector? req)]
