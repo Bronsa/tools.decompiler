@@ -336,6 +336,14 @@
 
     [(.get (var ?v)) :-> ?v]
 
+    [(`-> ?&x)
+     :->
+     `(-> ~@(mapcat (fn [x]
+                      (compact x
+                         [(`-> ?&y) :-> `[~@?&y]]
+                         :else [x]))
+                    ?&x))]
+
     [(do ?&body)
      {?&body #(some (fn [expr]
                       (and (seq? expr)
