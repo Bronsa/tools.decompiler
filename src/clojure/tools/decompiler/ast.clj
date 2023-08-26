@@ -348,7 +348,11 @@
 
 (defmethod process-insn :ifeq [{:keys [stack] :as ctx} insn]
   (let [else-label (goto-label insn)]
-    (if (not= "pop" (:insn/name (insn-at ctx {:label else-label :offset -1})))
+    (if (and (= else-label (:insn/label (insn-at ctx {:offset 3})))
+             (= ((juxt :insn/name :insn/pool-element) (insn-at ctx {:offset 3}))
+                ["getstatic" #:insn{:target-class "java.lang.Boolean",
+                                    :target-name "FALSE",
+                                    :target-type "java.lang.Boolean"}]))
       (-> ctx
           (assoc :pc (:insn/label (insn-at ctx {:offset 4}))))
       (let [goto-end-insn (insn-at ctx {:label else-label :offset -2})
