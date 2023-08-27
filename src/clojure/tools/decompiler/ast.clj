@@ -22,9 +22,10 @@
 
 (def initial-local-ctx {:stack []
                         :pc 0
-                        :impure-loops #{}
+                        :impure-loops #{} ;; loops with no bindings, pure jumps
                         :local-variable-table #{}
-                        :exception-table #{}})
+                        :exception-table #{}
+                        :reachable #{}})
 
 (defn pc= [terminate-at]
   (fn [{:keys [pc]}]
@@ -91,6 +92,39 @@
 ;; process-* : bc, ctx -> ctx
 ;; decompile-* : bc, ctx -> AST
 
+(defn restrict [x y]
+  (if x (some-fn x y) y))
+
+(defn get-reachable [pc reachable {:keys [insns jump-table] :as ctx}]
+  (if (or ;; we're exiting
+       (not (get jump-table pc))
+       ;; we've already visited this node
+       (contains? reachable pc))
+    reachable
+    (let [insn (curr-insn (assoc ctx :pc pc))
+          reachable (conj reachable pc)
+          insn-name (:insn/name insn)]
+      (cond
+
+        (= insn-name "goto")
+        (recur (+ pc (:insn/jump-offset insn)) reachable ctx)
+
+        (= insn-name "athrow")
+        (recur -1 reachable ctx)
+
+        (contains? #{"ifeq" "ifnull" "ifle" "ifge" "ifne" "iflt" "ifgt"
+                     "if_icmpeq""if_icmpne" "if_icmpgt" "if_icmpge" "if_icmple" "if_icmplt"
+                     "if_acmpne" "if_acmpeq"}
+                   insn-name)
+        (let [reachable (get-reachable (+ pc (:insn/length insn)) reachable ctx)]
+          (recur (+ pc (:insn/jump-offset insn)) reachable ctx))
+
+        :else (recur (+ pc (:insn/length insn)) reachable ctx)))))
+
+(defn collect-reachable [ctx]
+  (let [reachable (get-reachable 0 #{} ctx)]
+    (assoc ctx :reachable reachable)))
+
 (def process-insn nil)
 (defmulti process-insn
   (fn [_ {:insn/keys [name]}] (keyword name))
@@ -137,7 +171,7 @@
         ;; WIP: need to backup lvt?
         body-ctx (-> expr-ctx
                      (assoc :statements [])
-                     (assoc :terminate? (pc= body-end-label))
+                     (assoc :terminate? (restrict (:terminate? expr-ctx ) (pc= body-end-label)))
                      (process-insns))
 
         body (->do (conj (-> body-ctx :statements) (-> body-ctx :stack peek)))
@@ -150,7 +184,7 @@
                          finally-ctx (process-insns (-> expr-ctx
                                                         (assoc :pc start-label)
                                                         (assoc :statements [])
-                                                        (assoc :terminate? (pc= end-label))))]
+                                                        (assoc :terminate? (restrict (:terminate? expr-ctx ) (pc= end-label)))))]
                      (->do (-> finally-ctx :statements))))
 
         ?catches (when-let [catches (seq (filter :type handlers))]
@@ -163,7 +197,7 @@
                                                          (assoc :exception-table #{})
                                                          (update :stack conj local)
                                                          (assoc :statements [])
-                                                         (assoc :terminate? (pc= end-label))))]
+                                                         (assoc :terminate? (restrict (:terminate? expr-ctx) (pc= end-label)))))]
                         {:op :catch
                          :local {:name name
                                  :type type}
@@ -204,10 +238,12 @@
 
 (defn process-impure-loop [{:keys [impure-loops pc] :as ctx}]
   (let [end-label (impure-loops pc)
+
         {body-stack :stack body-stmnts :statements :keys [pc]} (process-insns (-> ctx
                                                                                   (assoc :loop-args [])
                                                                                   (update :impure-loops disj pc)
-                                                                                  (assoc :terminate? :recur?)
+                                                                                  (assoc :loop-end-label end-label)
+                                                                                  (assoc :terminate? (restrict (:terminate? ctx) :recur?))
                                                                                   (assoc :statements [])))
         statement? (not (will-ret? ctx end-label))
         body (->do (conj body-stmnts (peek body-stack)))]
@@ -300,20 +336,29 @@
         (assoc :stack [] :statements []
                :ast (->do (conj statements ret))))))
 
-(defn process-if [{:keys [stack] :as ctx} test [start-then end-then] [start-else end-else]]
+(defn process-if [{:keys [stack] :as ctx} test [start-then end-then]
+                  [start-else end-else maybe-one-armed?]]
   (let [then-ctx (process-insns (assoc ctx
                                        :pc start-then
-                                       :terminate? (pc= end-then)
+                                       :terminate? (restrict (:terminate? ctx) (pc= end-then))
                                        :statements []))
-        else-ctx (process-insns (assoc ctx
-                                       :pc start-else
-                                       :terminate? (pc= end-else)
-                                       :statements []))
+
+        one-armed? (and (not (:recur? then-ctx)) maybe-one-armed?)
+
+        end-else (if (and maybe-one-armed? (not one-armed?))
+                     (:loop-end-label ctx)
+                     end-else)
+
+        else-ctx (when-not one-armed?
+                   (process-insns (assoc ctx
+                                         :pc start-else
+                                         :terminate? (restrict (:terminate? ctx) (pc= end-else))
+                                         :statements [])))
 
         {then-stack :stack then-stmnts :statements then-recur? :recur?} then-ctx
         {else-stack :stack else-stmnts :statements else-recur? :recur?} else-ctx
 
-        statement? (= stack then-stack else-stack)
+        statement? (or one-armed? (= stack then-stack else-stack))
 
         [then else] (if statement?
                       [then-stmnts else-stmnts]
@@ -325,26 +370,30 @@
                 conj {:op :if
                       :test test
                       :then (->do then)
-                      :else (->do else)})
+                      :else (if else (->do else) nil-expr)})
         (cond-> (not statement?)
-          (assoc :recur? (or then-recur? else-recur?))))))
+          (assoc :recur? (or then-recur? else-recur?))
+          one-armed? (assoc :pc start-else)))))
 
 (defmethod process-insn :ifnull [{:keys [stack] :as ctx} insn]
   (let [null-label (goto-label insn)
-
         goto-end-insn (insn-at ctx {:label null-label :offset -1})
-        end-label (goto-label goto-end-insn)
 
         goto-else-insn (insn-at ctx {:offset 2})
         else-label (goto-label goto-else-insn)
 
         {then-label :insn/label} (insn-at ctx {:offset 3})
 
-        [test _] (peek-n stack 2)]
+        [test _] (peek-n stack 2)
 
-    (-> ctx
-        (update :stack pop-n 2)
-        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
+        maybe-one-armed? (not (:insn/jump-offset goto-end-insn))
+        end-label (if maybe-one-armed?
+                        (reduce max 0 (keys (:jump-table ctx)))
+                        (goto-label goto-end-insn))]
+        (-> ctx
+            (update :stack pop-n 2)
+            (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label maybe-one-armed?]))))
+
 
 (defmethod process-insn :ifeq [{:keys [stack] :as ctx} insn]
   (let [else-label (goto-label insn)]
@@ -356,16 +405,15 @@
       (-> ctx
           (assoc :pc (:insn/label (insn-at ctx {:offset 4}))))
       (let [goto-end-insn (insn-at ctx {:label else-label :offset -2})
-
-            end-label (goto-label goto-end-insn)
-
             {then-label :insn/label} (insn-at ctx {:offset 1})
-
-            test (peek stack)]
-
+            test (peek stack)
+            maybe-one-armed? (not (:insn/jump-offset goto-end-insn))
+            end-label (if maybe-one-armed?
+                        (reduce max 0 (keys (:jump-table ctx)))
+                        (goto-label goto-end-insn))]
         (-> ctx
             (update :stack pop)
-            (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))))
+            (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label maybe-one-armed?]))))))
 
 (defmethod process-insn ::bc/aget [{:keys [stack] :as ctx} _]
   (let [[arr i] (peek-n stack 2)]
@@ -398,17 +446,20 @@
         else-label (goto-label insn)
 
         goto-end-insn (insn-at ctx {:label else-label :offset -2})
-        end-label (goto-label goto-end-insn)
 
         {then-label :insn/label} (insn-at ctx {:offset (inc offset)})
 
         [a b] (peek-n stack 2)
 
-        test {:op :invoke :fn {:op :var :ns "clojure.core" :name op} :args [a b]}]
+        test {:op :invoke :fn {:op :var :ns "clojure.core" :name op} :args [a b]}
 
-    (-> ctx
-        (update :stack pop-n 2)
-        (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label]))))
+        maybe-one-armed? (not (:insn/jump-offset goto-end-insn))
+        end-label (if maybe-one-armed?
+                        (reduce max 0 (keys (:jump-table ctx)))
+                        (goto-label goto-end-insn))]
+        (-> ctx
+            (update :stack pop-n 2)
+            (process-if test [then-label (:insn/label goto-end-insn)] [else-label end-label maybe-one-armed?]))))
 
 (defmethod process-insn :goto [{:keys [loop-args] :as ctx} {:insn/keys [jump-offset]}]
   (if-not (pos? jump-offset)
@@ -485,7 +536,7 @@
       (if arg
         (let [pre-insn (insn-at ctx {:label (:start-label arg) :offset -1}) ;; astore
               {:keys [statements stack] :as new-ctx} (process-insns (-> args-ctx
-                                                                        (assoc :terminate? (pc= (:insn/label pre-insn)))
+                                                                        (assoc :terminate? (restrict (:terminate? ctx) (pc= (:insn/label pre-insn))))
                                                                         (assoc :statements [])))
 
               local-variable (find-init-local new-ctx (:start-label arg))
@@ -501,7 +552,8 @@
                                                                              (assoc :local-variable (:local-variable args-ctx))
                                                                              (assoc :pc loop-label)
                                                                              (assoc :loop-args (mapv :local-variable args))
-                                                                             (assoc :terminate? (pc= end-label))
+                                                                             (assoc :loop-end-label end-label)
+                                                                             (assoc :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                                                              (assoc :statements [])))
 
               statement? (not (will-ret? ctx end-label))
@@ -517,7 +569,7 @@
   (let [{:insn/keys [length]} (curr-insn ctx)
         body-ctx (process-insns (-> ctx
                                     (update :pc + length)
-                                    (assoc :terminate? (pc= end-label))
+                                    (assoc :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                     (assoc :statements [])))
         {body-stack :stack body-stmnts :statements :keys [recur?]} body-ctx
         statement? (= stack body-stack)
@@ -569,7 +621,7 @@
                          (update :local-variable-table #(apply disj % local-variables))
                          (update :local-variable-table #(apply conj % init-local-variables))
                          (assoc :pc start-label)
-                         (assoc :terminate? (pc= end-label))
+                         (assoc :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                          (process-insns))
             {body-stack :stack body-stmnts :statements :keys [recur?]} body-ctx
             statement? (= stack body-stack)
@@ -810,12 +862,14 @@
                                  :class target-class
                                  :args args}))))))
 
-(defmethod process-insn :athrow [{:keys [stack] :as ctx} _]
-  (let [ex (peek stack)]
-    (-> ctx
-        (update :stack pop)
-        (update :statements conj {:op :throw
-                                  :ex ex}))))
+(defmethod process-insn :athrow [{:keys [stack reachable pc] :as ctx} _]
+  (if-not (contains? reachable pc)
+    ctx
+    (let [ex (peek stack)]
+      (-> ctx
+          (update :stack pop)
+          (update :statements conj {:op :throw
+                                    :ex ex})))))
 
 (defmethod process-insn ::bc/invoke-instance-method [{:keys [stack bc-for ^String class-name lenient?] :as ctx} {:insn/keys [pool-element]}]
   (let [{:insn/keys [target-class target-name target-ret-type target-arg-types]} pool-element
@@ -1053,6 +1107,7 @@
             (update :loop-args #(vec (rest %)))))
       (assoc :insns bytecode)
       (collect-impure-loops-data)
+      (collect-reachable)
       (process-insns)))
 
 (defn process-static-init [{:keys [bc-for] :as ctx} {:class/keys [methods]}]
