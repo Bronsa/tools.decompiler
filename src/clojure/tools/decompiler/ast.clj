@@ -171,7 +171,7 @@
         ;; WIP: need to backup lvt?
         body-ctx (-> expr-ctx
                      (assoc :statements [])
-                     (assoc :terminate? (restrict (:terminate? expr-ctx ) (pc= body-end-label)))
+                     (assoc :terminate? (restrict (:terminate? expr-ctx) (pc= body-end-label)))
                      (process-insns))
 
         body (->do (conj (-> body-ctx :statements) (-> body-ctx :stack peek)))
@@ -722,7 +722,7 @@
                          (let [test-ctx (-> ctx
                                             (assoc :pc label
                                                    :statements []
-                                                   :terminate? (pc= end-label))
+                                                   :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                             (process-insns))
                                test (expr+statements test-ctx)
                                exprs (-> test :ret :body :ret :body :ret)]
@@ -731,9 +731,10 @@
                          (let [{:keys [stack] :as test-ctx} (-> ctx
                                                                 (assoc :pc label
                                                                        :statements []
-                                                                       :terminate? (fn [ctx]
-                                                                                     (#{"if_acmpne" "invokestatic"}
-                                                                                      (:insn/name (curr-insn ctx)))))
+                                                                       :terminate? (restrict (:terminate? ctx)
+                                                                                             (fn [ctx]
+                                                                                               (#{"if_acmpne" "invokestatic"}
+                                                                                                (:insn/name (curr-insn ctx))))))
                                                                 (process-insns))
                                test (peek stack)
                                hash-identity? (= "if_acmpne" (:insn/name (curr-insn test-ctx)))
@@ -743,7 +744,7 @@
                                expr-ctx (-> ctx
                                             (assoc :pc start-expr-label
                                                    :statements []
-                                                   :terminate? (pc= end-label))
+                                                   :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                             (process-insns))]
                            [(if hash-identity? :hash-identity :hash-equiv) match test (expr+statements expr-ctx) (:recur? expr-ctx)]))
 
@@ -755,25 +756,27 @@
                          (let [{:keys [stack] :as test-ctx} (-> ctx
                                                                 (assoc :pc label
                                                                        :statements []
-                                                                       :terminate? (fn [ctx]
-                                                                                     (= "invokestatic" (:insn/name (curr-insn ctx)))))
+                                                                       :terminate? (restrict (:terminate? ctx)
+                                                                                             (fn [ctx]
+                                                                                               (= "invokestatic" (:insn/name (curr-insn ctx))))))
                                                                 (process-insns))
                                test (peek stack)
 
                                expr-ctx (-> ctx
                                             (assoc :pc (:insn/label (insn-at test-ctx {:offset 2}))
                                                    :statements []
-                                                   :terminate? (pc= end-label))
+                                                   :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                             (process-insns))]
                            [:int match test (expr+statements expr-ctx) (:recur? expr-ctx)])
 
                          (let [{:keys [stack] :as test-ctx} (-> ctx
                                                                 (assoc :pc label
                                                                        :statements []
-                                                                       :terminate? (some-fn (pc= end-label)
-                                                                                            (fn [ctx]
-                                                                                              (and (= "lcmp" (:insn/name (curr-insn ctx)))
-                                                                                                   (= default-label (goto-label (insn-at ctx {:offset 1})))))))
+                                                                       :terminate? (-> (:terminate? ctx)
+                                                                                       (restrict (pc= end-label))
+                                                                                       (restrict (fn [ctx]
+                                                                                                   (and (= "lcmp" (:insn/name (curr-insn ctx)))
+                                                                                                        (= default-label (goto-label (insn-at ctx {:offset 1}))))))))
                                                                 (process-insns))]
 
                            (if (= "lcmp" (:insn/name (curr-insn test-ctx)))
@@ -781,7 +784,7 @@
                                    expr-ctx (-> ctx
                                                 (assoc :pc (:insn/label (insn-at test-ctx {:offset 2}))
                                                        :statements []
-                                                       :terminate? (pc= end-label))
+                                                       :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                                                 (process-insns))]
                                [:int match test (expr+statements expr-ctx) (:recur? expr-ctx)])
 
@@ -794,7 +797,7 @@
         default-expr (-> ctx
                          (assoc :pc default-label
                                 :statements []
-                                :terminate? (pc= end-label))
+                                :terminate? (restrict (:terminate? ctx) (pc= end-label)))
                          (process-insns)
                          (expr+statements))
         expr {:op :case
@@ -917,10 +920,11 @@
   (let [{:insn/keys [target-name]} pool-element
         {:keys [pc statements stack]} (process-insns (assoc ctx
                                                             :pc (:insn/label (insn-at ctx {:offset 2}))
-                                                            :terminate? (fn [ctx]
-                                                                          (->> (curr-insn ctx)
-                                                                               :insn/name
-                                                                               (= "dup_x2")))
+                                                            :terminate? (restrict (:terminate? ctx)
+                                                                                  (fn [ctx]
+                                                                                    (->> (curr-insn ctx)
+                                                                                         :insn/name
+                                                                                         (= "dup_x2"))))
                                                             :statements []))
         target (->do (conj statements (peek stack)))]
     (-> ctx
@@ -1089,6 +1093,7 @@
       (assoc ctx :impure-loops data))))
 
 (defn process-method-insns [{:keys [fn-name] :as ctx} {:method/keys [bytecode jump-table local-variable-table flags exception-table]}]
+  (println fn-name)
   (-> ctx
       (merge initial-local-ctx {:jump-table jump-table})
       (merge-tables local-variable-table exception-table)
@@ -1195,7 +1200,7 @@
   (let [{:method/keys [bytecode jump-table]} (u/find-method methods {:method/name "load"})
         ctx (-> ctx
                 (assoc
-                 :terminate? (comp seq :statements)
+                 :terminate? (restrict (:terminate? ctx) (comp seq :statements))
                  :insns bytecode)
                 (merge initial-local-ctx {:jump-table jump-table}))
         indicize (fn [s i]
