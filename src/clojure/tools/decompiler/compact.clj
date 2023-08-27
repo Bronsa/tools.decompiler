@@ -524,7 +524,7 @@
     [(`reset-meta! ?var ?meta) {?meta #(and (map? %) (:declared %))} :-> `(declare ~(-> ?var second))]
 
     [(.withMeta (`list ?&body) ?meta) {?meta #(and (map? %) (#{#{:line} #{:column} #{:line :column}} (set (keys %))))} :-> `(list ~@?&body)]
-    [(.withMeta ?x ?meta) {?meta #(empty? %)} :-> ?x]
+    [(.withMeta ?x ?meta) {?meta #(and (map? %) (empty? %))} :-> ?x]
 
     [(clojure.lang.LockingTransaction/runInTransaction (`fn ?_ ([] ?&body))) :-> `(dosync ~@?&body)]
 
@@ -686,7 +686,7 @@
     [(`alter-var-root (var ?p) `merge (`assoc ?m :sigs ?sigs :var (var ?p) :method-map ?mm :method-builders ?mb))
      :-> `(defprotocol ~(symbol (name ?p))
             ~@(->> (for [[f {:keys [arglists]}] ?sigs]
-                     [(symbol (name f)) (map #(mapv second %) (rest arglists))])
+                     [(symbol (name f)) (map #(mapv second (if (vector? %) % (second %))) (rest arglists))])
                 (mapcat identity)))]
 
     [(deftype* ?type ?ttype ?argv :implements ?interfaces ?&impls)
